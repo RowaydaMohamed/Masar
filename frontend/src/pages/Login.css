@@ -1,0 +1,133 @@
+.loginPage{
+  --ink:#1B2A4A;
+  --ink-soft:#5B6788;
+  --paper:#F6F3EA;
+  --raised:#FFFFFF;
+  --gold:#B08A2E;
+  --gold-deep:#8C6C1F;
+  --gold-soft:#EFE1BE;
+  --sage:#4C6B58;
+  --sage-soft:#DCE8DF;
+  --rose:#A34A3D;
+  --rose-soft:#F0DAD5;
+  --line:#DCD5C3;
+  --grey:#9CA3B5;
+  --shadow: 0 1px 2px rgba(27,42,74,.07), 0 10px 30px rgba(27,42,74,.10);
+
+  font-family:'IBM Plex Sans Arabic', sans-serif;
+  color:var(--ink);
+  display:flex;
+  min-height:100vh;
+}
+.loginPage .mono{font-family:'IBM Plex Mono',monospace;}
+
+.loginPage .brandPane{
+  flex:1 1 46%;
+  background:linear-gradient(160deg, #16233F 0%, #1B2A4A 55%, #223458 100%);
+  color:#fff;
+  display:flex; flex-direction:column; justify-content:space-between;
+  padding:48px 52px;
+  position:relative; overflow:hidden;
+  min-height:100vh;
+}
+.loginPage .brandPane::before{
+  content:""; position:absolute; inset:0; opacity:.5; pointer-events:none;
+  background-image: radial-gradient(circle at 1px 1px, rgba(255,255,255,.06) 1px, transparent 0);
+  background-size:26px 26px;
+}
+.loginPage .brandTop{position:relative; z-index:1;}
+.loginPage .brandTop .logo{font-family:'Cairo'; font-weight:800; font-size:26px;}
+.loginPage .brandTop .logo span{color:#E9CE87;}
+.loginPage .brandTop .tag{font-size:13px; color:#B9C2D9; margin-top:6px; max-width:320px; line-height:1.7;}
+
+.loginPage .treeArt{position:relative; z-index:1; flex:1; display:flex; align-items:center; justify-content:center;}
+.loginPage .treeArt svg{width:100%; max-width:420px; opacity:.9;}
+
+.loginPage .brandBottom{position:relative; z-index:1;}
+.loginPage .brandBottom .quote{font-family:'Cairo'; font-weight:700; font-size:17px; line-height:1.7; max-width:360px;}
+.loginPage .brandBottom .quote span{color:#E9CE87;}
+.loginPage .brandBottom .sub{font-size:12.5px; color:#8C97B5; margin-top:14px;}
+
+.loginPage .formPane{
+  flex:1 1 54%; background:var(--paper);
+  display:flex; align-items:center; justify-content:center;
+  padding:40px 24px; min-height:100vh;
+}
+.loginPage .formCard{
+  width:100%; max-width:400px; background:var(--raised); border:1px solid var(--line);
+  border-radius:16px; padding:38px 34px 30px; box-shadow:var(--shadow);
+  animation: riseIn .5s ease both;
+}
+@keyframes riseIn{ from{opacity:0; transform:translateY(10px);} to{opacity:1; transform:translateY(0);} }
+
+.loginPage .formCard h1{font-family:'Cairo'; font-weight:800; font-size:21px; margin:0 0 4px;}
+.loginPage .formCard .lead{font-size:13px; color:var(--ink-soft); margin:0 0 26px;}
+
+.loginPage .segToggle{
+  display:flex; background:var(--paper); border:1px solid var(--line); border-radius:10px; padding:3px;
+  margin-bottom:20px;
+}
+.loginPage .segToggle button{
+  flex:1; border:none; background:transparent; padding:8px 6px; border-radius:8px;
+  font-family:'IBM Plex Sans Arabic'; font-weight:600; font-size:12.5px; color:var(--ink-soft); cursor:pointer; transition:.15s;
+}
+.loginPage .segToggle button.active{background:var(--ink); color:#fff;}
+
+.loginPage .field{margin-bottom:16px;}
+.loginPage .field label{display:block; font-size:12.5px; font-weight:600; color:var(--ink-soft); margin-bottom:6px;}
+.loginPage .inputWrap{position:relative; display:flex; align-items:center;}
+.loginPage .inputWrap svg{position:absolute; right:12px; width:16px; height:16px; color:var(--grey); pointer-events:none;}
+.loginPage .inputWrap input{
+  width:100%; border:1.4px solid var(--line); border-radius:9px; padding:11px 38px 11px 14px;
+  font-size:13.5px; font-family:'IBM Plex Sans Arabic'; color:var(--ink); background:var(--raised);
+  transition:.15s;
+}
+.loginPage .inputWrap input:focus{outline:none; border-color:var(--gold-deep); box-shadow:0 0 0 3px var(--gold-soft);}
+.loginPage .inputWrap input.errorField{border-color:var(--rose);}
+.loginPage .toggleEye{
+  position:absolute; left:10px; border:none; background:none; cursor:pointer; padding:4px;
+  color:var(--ink-soft); display:flex;
+}
+.loginPage .capsWarn{
+  font-size:11.5px; color:var(--gold-deep); margin-top:6px; display:none; align-items:center; gap:5px;
+}
+.loginPage .capsWarn.show{display:flex;}
+
+.loginPage .rowBetween{display:flex; align-items:center; justify-content:space-between; margin:2px 0 22px;}
+.loginPage .rememberMe{display:flex; align-items:center; gap:7px; font-size:12.5px; color:var(--ink-soft);}
+.loginPage .rememberMe input{width:14px; height:14px; accent-color:var(--gold-deep);}
+.loginPage .forgotLink{font-size:12.5px; color:var(--gold-deep); text-decoration:none; font-weight:600;}
+.loginPage .forgotLink:hover{text-decoration:underline;}
+
+.loginPage .errorBanner{
+  display:none; background:var(--rose-soft); border:1px solid var(--rose); color:var(--rose);
+  border-radius:8px; padding:9px 13px; font-size:12.5px; margin-bottom:16px; align-items:center; gap:8px;
+}
+.loginPage .errorBanner.show{display:flex;}
+
+.loginPage .submitBtn{
+  width:100%; background:var(--ink); color:#fff; border:none; border-radius:10px; padding:13px;
+  font-family:'Cairo'; font-weight:700; font-size:14.5px; cursor:pointer; transition:.15s;
+  display:flex; align-items:center; justify-content:center; gap:9px;
+}
+.loginPage .submitBtn:hover{background:#101d38;}
+.loginPage .submitBtn:disabled{background:var(--grey); cursor:not-allowed;}
+.loginPage .spinner{
+  width:15px; height:15px; border:2px solid rgba(255,255,255,.4); border-top-color:#fff;
+  border-radius:50%; animation:spin .7s linear infinite; display:none;
+}
+.loginPage .spinner.show{display:inline-block;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+.loginPage .helpNote{
+  text-align:center; font-size:12px; color:var(--ink-soft); margin-top:22px; line-height:1.7;
+  border-top:1px dashed var(--line); padding-top:16px;
+}
+.loginPage .helpNote b{color:var(--ink); font-weight:600;}
+
+.loginPage .footerMini{text-align:center; font-size:11px; color:var(--grey); margin-top:18px;}
+
+@media (max-width:900px){
+  .loginPage .brandPane{display:none;}
+  .loginPage .formPane{min-height:100vh;}
+}
