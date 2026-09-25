@@ -14,10 +14,15 @@ class Department(models.Model):
 
 
 class Course(models.Model):
+    # Team decision: category alone identifies general vs. department, since some
+    # courses (e.g. AI310) are compulsory in one department's list and elective in
+    # another's — a single department FK couldn't represent that anyway.
     CATEGORY_CHOICES = [
         ("general", "General"),
-        ("faculty", "Faculty"),
-        ("department", "Department"),
+        ("cs", "Computer Science"),
+        ("it", "Information Technology"),
+        ("is", "Information Systems"),
+        ("ai", "Artificial Intelligence"),
     ]
     REQUIREMENT_CHOICES = [
         ("compulsory", "Compulsory"),
@@ -31,14 +36,6 @@ class Course(models.Model):
     category = models.CharField(max_length=20, choices=CATEGORY_CHOICES)
     requirement_type = models.CharField(max_length=20, choices=REQUIREMENT_CHOICES)
     description = models.TextField(blank=True, null=True)
-
-    # NOTE: not shown in your latest diagram — added back because department-specific
-    # courses (like AI310) need to know which department they belong to, or the tree
-    # can't filter "show only this student's department courses". Delete this field
-    # if you're linking departments <-> courses a different way on purpose.
-    department = models.ForeignKey(
-        Department, on_delete=models.SET_NULL, null=True, blank=True
-    )
 
     def __str__(self):
         return self.code
