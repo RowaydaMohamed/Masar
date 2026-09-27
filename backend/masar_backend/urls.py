@@ -16,12 +16,13 @@ Including another URLconf
 """
 
 from django.contrib import admin
-from django.urls import path
+from django.urls import path, include
 from . import views  # imports the views.py file
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/ping', views.ping),      # links the URL path to your function
     path('api/courses', views.courses),  
+    path('api/', include('academics.urls')),
 ]
 
