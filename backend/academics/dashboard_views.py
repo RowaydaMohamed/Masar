@@ -106,8 +106,3 @@ def dashboard(request):
         "seventh_course_request": seventh_course_request,
         "notifications": notifications,
     })
-    
-    
-    
-   
-    
