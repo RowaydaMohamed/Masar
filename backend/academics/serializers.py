@@ -13,7 +13,8 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         self.fields['identifier'] = self.fields.pop('username')
     
     def validate(self, attrs):
-        identifier = attrs.get('identifier')
+        identifier = attrs.get('username') or attrs.get('identifier')
+        
         if "@" in identifier:# if a user used an email to sign in
             try:
                 student = Student.objects.get(university_email=identifier)
@@ -22,7 +23,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
                     raise AuthenticationFailed("Invalid email or password.")
         else:
             attrs['username'] = identifier
-        del attrs['identifier']
+        attrs.pop('identifier', None)
 
         return super().validate(attrs)
 
