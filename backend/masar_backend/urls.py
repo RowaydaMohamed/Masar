@@ -26,3 +26,11 @@ urlpatterns = [
     path('api/', include('academics.urls')),
 ]
 
+from academics import dashboard_views
+
+urlpatterns = [
+    path('admin/', admin.site.urls),
+    path('api/ping', views.ping),
+    path('api/courses', views.courses),
+    path('api/dashboard', dashboard_views.dashboard),   # NEW
+]
