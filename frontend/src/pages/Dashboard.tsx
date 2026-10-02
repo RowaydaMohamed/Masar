@@ -1,74 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import './Dashboard.css'
-
-// ============ Shape of the data we expect from Mahmoud's real API ============
-// Keeping this typed now means swapping mock -> real fetch later is a 1-line change.
-interface DashboardData {
-  student: {
-    name: string
-    avatarLetter: string
-    major: string
-    year: string
-    cgpa: number
-  }
-  stats: {
-    completedHours: number
-    totalHours: number
-    progressPercent: number
-    currentCourses: number
-    remainingHours: number
-  }
-  registeredCourses: { code: string; name: string; hours: number }[]
-  schedule: {
-    time: string
-    slots: (null | { code: string; variant?: 'alt' | 'alt2' })[]
-  }[]
-  deadline: { daysLeft: number; dateLabel: string }
-  summerRequests: { name: string; status: 'approved' | 'pending' | 'rejected' | 'review'; statusLabel: string }[]
-  seventhCourseRequest: { code: string; name: string; statusLabel: string; note: string }
-  notifications: { icon: string; text: string; time: string }[]
-}
-
-// ============ TEMPORARY mock data — matches the shape above ============
-// TODO: once Mahmoud's GET /api/dashboard endpoint is ready, delete this
-// and use the real fetch call in useEffect below instead.
-const MOCK_DATA: DashboardData = {
-  student: { name: 'يمنى أحمد', avatarLetter: 'ي', major: 'هندسة البرمجيات', year: 'الفرقة الرابعة', cgpa: 3.53 },
-  stats: { completedHours: 108, totalHours: 132, progressPercent: 82, currentCourses: 6, remainingHours: 24 },
-  registeredCourses: [
-    { code: 'AI330', name: 'تعلم الآلة', hours: 3 },
-    { code: 'IT441', name: 'معالجة الصور 1', hours: 3 },
-    { code: 'AI430', name: 'الذكاء الحاسوبي', hours: 3 },
-    { code: 'HU313', name: 'حقوق الإنسان', hours: 2 },
-    { code: 'IS231', name: 'أساسيات نظم المعلومات', hours: 3 },
-    { code: 'AI498', name: 'مشروع التخرج', hours: 6 },
-  ],
-  schedule: [
-    { time: '9:00–11:00', slots: [{ code: 'AI330' }, null, { code: 'AI330' }, null, { code: 'IS231', variant: 'alt2' }] },
-    { time: '11:00–1:00', slots: [null, { code: 'IT441', variant: 'alt' }, null, { code: 'IT441', variant: 'alt' }, null] },
-    { time: '1:00–3:00', slots: [{ code: 'AI430', variant: 'alt2' }, null, { code: 'AI430', variant: 'alt2' }, null, { code: 'HU313' }] },
-  ],
-  deadline: { daysLeft: 3, dateLabel: 'آخر موعد: الخميس القادم — 11:59 م' },
-  summerRequests: [
-    { name: 'ST122 — إحصاء 2', status: 'approved', statusLabel: 'هتُفتح' },
-    { name: 'CS241 — نظم تشغيل 1', status: 'review', statusLabel: 'قيد المراجعة' },
-    { name: 'IT222 — شبكات حاسب 1', status: 'pending', statusLabel: 'طلب مُرسَل' },
-  ],
-  seventhCourseRequest: {
-    code: 'IS351',
-    name: 'تحليل وتصميم نظم المعلومات 1',
-    statusLabel: 'قيد المراجعة',
-    note: 'اتبعت بناءً على معدلك (3.53) — الإدارة هتراجعه خلال يومين غالبًا',
-  },
-  notifications: [
-    { icon: '✅', text: 'تم قبول طلب تسجيلك في <b>ST122 — إحصاء 2</b> (تسجيل صيفي)', time: 'من يومين' },
-    { icon: '⏳', text: 'طلب المادة السابعة (<b>IS351</b>) لسه قيد المراجعة من الإدارة', time: 'من 3 أيام' },
-    { icon: '📅', text: 'باب التسجيل هيقفل خلال <b>3 أيام</b> — راجعي جدولك قبل الموعد', time: 'النهاردة' },
-    { icon: '🟡', text: 'أداءك في <b>AI330</b> لسه تحت المتوسط — يفضّل تراجعي المادة بدري', time: 'من أسبوع' },
-  ],
-}
-
+import { fetchDashboard, type DashboardData } from '../lib/dashboardApi'
 const DAYS = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس']
 
 function Dashboard() {
@@ -77,22 +10,23 @@ function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
-  useEffect(() => {
-    // ---- TEMPORARY: simulate a network request with mock data ----
-    // TODO: replace this whole block with:
-    //   const token = localStorage.getItem('token')
-    //   const res = await fetch('http://localhost:8000/api/dashboard', {
-    //     headers: { Authorization: `Bearer ${token}` }
-    //   })
-    //   if (res.ok) setData(await res.json())
-    //   else setError('حصل خطأ في تحميل البيانات')
-    const timer = setTimeout(() => {
-      setData(MOCK_DATA)
-      setLoading(false)
-    }, 600)
-    return () => clearTimeout(timer)
+     useEffect(() => {
+    let cancelled = false
+    fetchDashboard()
+      .then((result) => {
+        if (!cancelled) {
+          setData(result)
+          setLoading(false)
+        }
+      })
+      .catch((err: Error) => {
+        if (!cancelled) {
+          setError(err.message || 'حصل خطأ غير متوقع')
+          setLoading(false)
+        }
+      })
+    return () => { cancelled = true }
   }, [])
-
   function handleLogout() {
     localStorage.removeItem('token')
     navigate('/login')
