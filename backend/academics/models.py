@@ -67,7 +67,7 @@ class GradeScale(models.Model):
 
 
 class Student(models.Model):
-    STATUS_CHOICES = [
+    STATUS_CHOICES = [ 
         ("enrolled", "Enrolled"),
         ("graduated", "Graduated"),
         ("probation", "Probation"),
