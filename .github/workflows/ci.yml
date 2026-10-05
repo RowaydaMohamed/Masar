@@ -9,6 +9,27 @@ jobs:
     runs-on: ubuntu-latest
     env:
       SECRET_KEY: ci-dummy-secret-key-not-for-production
+      DATABASE_NAME: masar_db
+      DATABASE_USER: postgres
+      DATABASE_PASSWORD: ci-postgres-password
+      DATABASE_HOST: localhost
+      DATABASE_PORT: 5432
+    # A throwaway Postgres container that lives only for this job
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: masar_db
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci-postgres-password
+        ports:
+          - 5432:5432
+        # Don't start the steps until Postgres is actually accepting connections
+        options: >-
+          --health-cmd "pg_isready -U postgres -d masar_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
 
@@ -37,10 +58,26 @@ jobs:
         working-directory: backend
         run: python manage.py check
 
+      - name: Check for missing migrations
+        if: steps.check.outputs.exists == 'true'
+        working-directory: backend
+        run: python manage.py makemigrations --check --dry-run
+
+      # Django builds its own empty test database (test_masar_db) and tests create
+      # their own data, so tests do NOT depend on the seed script.
       - name: Run backend tests
         if: steps.check.outputs.exists == 'true'
         working-directory: backend
         run: python manage.py test
+
+      # Separate smoke test: proves migrate + seed_data still work together on an
+      # empty database, so a model change can't silently break the demo seed.
+      - name: Smoke-test migrations and seed command
+        if: steps.check.outputs.exists == 'true'
+        working-directory: backend
+        run: |
+          python manage.py migrate --noinput
+          python manage.py seed_data
 
       - name: No backend yet
         if: steps.check.outputs.exists == 'false'
