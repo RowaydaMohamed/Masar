@@ -33,10 +33,21 @@ if not SECRET_KEY:
         "then run the container with --env-file .env."
     )
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+# Controlled by the DEBUG env var; anything other than "true" means False.
+DEBUG = os.environ.get("DEBUG", "False").lower() == "true"
 
-ALLOWED_HOSTS = []
+# Comma-separated list in the ALLOWED_HOSTS env var. Render also injects
+# RENDER_EXTERNAL_HOSTNAME automatically, so the deployed URL is allowed for free.
+ALLOWED_HOSTS = [h.strip() for h in os.environ.get("ALLOWED_HOSTS", "").split(",") if h.strip()]
+if DEBUG:
+    ALLOWED_HOSTS += ["localhost", "127.0.0.1", "[::1]"]
+_render_host = os.environ.get("RENDER_EXTERNAL_HOSTNAME")
+if _render_host:
+    ALLOWED_HOSTS.append(_render_host)
+
+if not DEBUG:
+    # Behind Render's HTTPS proxy: trust its forwarded-protocol header
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 
 # Application definition
@@ -57,6 +68,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -136,6 +148,7 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.1/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 
 # Email
@@ -148,9 +161,12 @@ MAILERS = {
 }
 
 
-# for the frontend port
+# Comma-separated list in the CORS_ALLOWED_ORIGINS env var (no trailing slash!).
+# Locally defaults to the Vite dev server; in production set it to the frontend's URL.
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
+    o.strip()
+    for o in os.environ.get("CORS_ALLOWED_ORIGINS", "http://localhost:5173").split(",")
+    if o.strip()
 ]
 
 
