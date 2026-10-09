@@ -1,13 +1,14 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import './Login.css'
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
 type IdMode = 'id' | 'email'
 
 function Login() {
   const navigate = useNavigate()
 
-  const [mode, setMode] = useState<IdMode>('id')
+  const [mode, setMode] = useState<IdMode>('email')
   const [idValue, setIdValue] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -33,7 +34,7 @@ function Login() {
     setErrorMsg('استعادة كلمة المرور هتتحط في صفحة منفصلة لاحقًا — دي شاشة تسجيل الدخول بس دلوقتي.')
   }
 
-  function handleSubmit(e: React.FormEvent) {
+   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setErrorMsg('')
     setIdError(false)
@@ -53,12 +54,38 @@ function Login() {
       return
     }
 
+    // الـ API بيقبل البريد الجامعي بس لحد دلوقتي
+    if (mode === 'id') {
+      setErrorMsg('تسجيل الدخول بالرقم الجامعي مش متاح حاليًا، استخدمي البريد الجامعي.')
+      return
+    }
+
     setLoading(true)
-    // simulated auth delay — this stage is UI-only; real check happens once
-    // the backend/auth endpoint exists
-    setTimeout(() => {
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/login/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: idValue.trim(), password }),
+      })
+      const data = await res.json().catch(() => ({}))
+
+      if (!res.ok) {
+        setErrorMsg(
+          res.status === 400 || res.status === 401
+            ? 'البريد الجامعي أو كلمة المرور غير صحيحة.'
+            : 'حصل خطأ في السيرفر، حاولي تاني بعد شوية.'
+        )
+        setLoading(false)
+        return
+      }
+
+      localStorage.setItem('token', data.access)
+      localStorage.setItem('refresh_token', data.refresh)
       navigate('/dashboard')
-    }, 850)
+    } catch {
+      setErrorMsg('تعذّر الاتصال بالسيرفر، اتأكدي إنه شغّال.')
+      setLoading(false)
+    }
   }
 
   return (

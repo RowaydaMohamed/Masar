@@ -39,7 +39,11 @@ export interface DashboardData {
 
 // ============ Your teammate's helper, converts an ISO date to "من X أيام" ============
 function timeAgo(isoString: string): string {
-  const diffMs = new Date().getTime() - new Date(isoString).getTime()
+  const date = new Date(isoString)
+  // لو مش تاريخ (يعني نص جاهز زي "من يومين") رجّعيه زي ما هو
+  if (isNaN(date.getTime())) return isoString
+
+  const diffMs = new Date().getTime() - date.getTime()
   const minutes = Math.floor(diffMs / 60000)
   const hours = Math.floor(minutes / 60)
   const days = Math.floor(hours / 24)
@@ -135,9 +139,16 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 export async function fetchDashboard(): Promise<DashboardData> {
   const token = localStorage.getItem('token')
 
-  const res = await fetch(`${API_BASE}/api/dashboard`, {
+  const res = await fetch(`${API_BASE}/api/dashboard/`, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   })
+
+  // الـ token غلط أو منتهي: امسحيه ورجّعي المستخدمة لصفحة الـ login
+  if (res.status === 401) {
+    localStorage.removeItem('token')
+    window.location.href = '/login'
+    throw new Error('انتهت الجلسة، سجّلي الدخول من جديد')
+  }
 
   if (!res.ok) {
     throw new Error('تعذر تحميل بيانات لوحة التحكم')
