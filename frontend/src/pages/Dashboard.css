@@ -125,3 +125,28 @@
   .dashboardPage .span5,.dashboardPage .span7,.dashboardPage .span4{grid-column:span 12;}
   .dashboardPage .navLinks{display:none;}
 }
+
+.dashboardPage .recoHint{font-size:12.5px; color:var(--ink-soft); margin:0 0 12px;}
+.dashboardPage .recoGrid{display:grid; grid-template-columns:repeat(3,1fr); gap:10px 14px; margin-bottom:14px;}
+.dashboardPage .recoField{display:flex; flex-direction:column; gap:4px; font-size:11.5px; color:var(--ink-soft);}
+.dashboardPage .recoField span{text-align:left;}
+.dashboardPage .recoField input{
+  border:1.4px solid var(--line); border-radius:8px; padding:8px 10px; font-size:13px;
+  font-family:'IBM Plex Sans Arabic'; color:var(--ink); background:var(--raised);
+}
+.dashboardPage .recoField input:focus{outline:none; border-color:var(--gold-deep); box-shadow:0 0 0 3px var(--gold-soft);}
+.dashboardPage .recoBtn{
+  background:var(--ink); color:#fff; border:none; border-radius:10px; padding:10px 18px;
+  font-family:'Cairo'; font-weight:700; font-size:13px; cursor:pointer;
+}
+.dashboardPage .recoBtn:hover{background:#101d38;}
+.dashboardPage .recoBtn:disabled{background:var(--grey); cursor:not-allowed;}
+.dashboardPage .recoError{
+  background:var(--rose-soft); border:1px solid var(--rose); color:var(--rose);
+  border-radius:8px; padding:8px 12px; font-size:12.5px; margin-bottom:12px;
+}
+.dashboardPage .recoResult{background:var(--gold-soft); border-radius:12px; padding:14px 16px; margin-bottom:14px; text-align:center;}
+.dashboardPage .recoLabel{font-size:11.5px; color:var(--gold-deep);}
+.dashboardPage .recoValue{font-family:'Cairo'; font-weight:800; font-size:20px; color:var(--ink); margin:4px 0;}
+.dashboardPage .recoNote{font-size:11.5px; color:var(--ink-soft);}
+@media (max-width:920px){ .dashboardPage .recoGrid{grid-template-columns:repeat(2,1fr);} }
