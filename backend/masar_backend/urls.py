@@ -16,12 +16,9 @@ Including another URLconf
 """
 
 from django.contrib import admin
-from django.urls import path
-from . import views  # imports the views.py file
+from django.urls import path, include
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/ping', views.ping),      # links the URL path to your function
-    path('api/courses', views.courses),  
+    path('api/', include('academics.urls')),
 ]
-

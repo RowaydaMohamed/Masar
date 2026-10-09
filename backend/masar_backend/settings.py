@@ -1,3 +1,5 @@
+from dotenv import load_dotenv
+load_dotenv()
 """
 Django settings for masar_backend project.
 
@@ -12,10 +14,12 @@ https://docs.djangoproject.com/en/6.1/ref/settings/
 
 from pathlib import Path
 import os
+from dotenv import load_dotenv
 from django.core.exceptions import ImproperlyConfigured
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+load_dotenv(BASE_DIR.parent / ".env")
 
 
 # Quick-start development settings - unsuitable for production
@@ -29,10 +33,21 @@ if not SECRET_KEY:
         "then run the container with --env-file .env."
     )
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+# Controlled by the DEBUG env var; anything other than "true" means False.
+DEBUG = os.environ.get("DEBUG", "False").lower() == "true"
 
-ALLOWED_HOSTS = []
+# Comma-separated list in the ALLOWED_HOSTS env var. Render also injects
+# RENDER_EXTERNAL_HOSTNAME automatically, so the deployed URL is allowed for free.
+ALLOWED_HOSTS = [h.strip() for h in os.environ.get("ALLOWED_HOSTS", "").split(",") if h.strip()]
+if DEBUG:
+    ALLOWED_HOSTS += ["localhost", "127.0.0.1", "[::1]"]
+_render_host = os.environ.get("RENDER_EXTERNAL_HOSTNAME")
+if _render_host:
+    ALLOWED_HOSTS.append(_render_host)
+
+if not DEBUG:
+    # Behind Render's HTTPS proxy: trust its forwarded-protocol header
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 
 # Application definition
@@ -44,12 +59,18 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'rest_framework',   
+    'rest_framework',
+    'rest_framework_simplejwt',
+    'corsheaders',
+    'academics',
+
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -82,8 +103,12 @@ WSGI_APPLICATION = 'masar_backend.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': os.environ.get('DATABASE_NAME', 'masar_db'),
+        'USER': os.environ.get('DATABASE_USER', 'postgres'),
+        'PASSWORD': os.environ.get('DATABASE_PASSWORD', ''),
+        'HOST': os.environ.get('DATABASE_HOST', 'localhost'),
+        'PORT': os.environ.get('DATABASE_PORT', '5432'),
     }
 }
 
@@ -123,6 +148,7 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.1/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 
 # Email
@@ -132,4 +158,20 @@ MAILERS = {
     'default': {
         'BACKEND': 'django.core.mail.backends.console.EmailBackend',
     },
+}
+
+
+# Comma-separated list in the CORS_ALLOWED_ORIGINS env var (no trailing slash!).
+# Locally defaults to the Vite dev server; in production set it to the frontend's URL.
+CORS_ALLOWED_ORIGINS = [
+    o.strip()
+    for o in os.environ.get("CORS_ALLOWED_ORIGINS", "http://localhost:5173").split(",")
+    if o.strip()
+]
+
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    )
 }
