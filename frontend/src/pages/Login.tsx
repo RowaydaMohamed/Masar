@@ -54,18 +54,13 @@ function Login() {
       return
     }
 
-    // الـ API بيقبل البريد الجامعي بس لحد دلوقتي
-    if (mode === 'id') {
-      setErrorMsg('تسجيل الدخول بالرقم الجامعي مش متاح حاليًا، استخدمي البريد الجامعي.')
-      return
-    }
 
     setLoading(true)
     try {
       const res = await fetch(`${API_BASE}/api/auth/login/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: idValue.trim(), password }),
+        body: JSON.stringify({ identifier: idValue.trim(), password }),
       })
       const data = await res.json().catch(() => ({}))
 

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import './Dashboard.css'
 import { fetchDashboard, type DashboardData } from '../lib/dashboardApi'
+import SpecializationWidget from '../components/SpecializationWidget'
 const DAYS = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس']
 
 function Dashboard() {
@@ -27,8 +28,9 @@ function Dashboard() {
       })
     return () => { cancelled = true }
   }, [])
-  function handleLogout() {
+   function handleLogout() {
     localStorage.removeItem('token')
+    localStorage.removeItem('refresh_token')
     navigate('/login')
   }
 
@@ -177,18 +179,23 @@ function Dashboard() {
             ))}
           </div>
 
-          <div className="card span4">
+         <div className="card span4">
             <h3><span className="icon">➕</span> طلب المادة السابعة</h3>
-            <div className="statusCourse">
-              <div className="code">{data.seventhCourseRequest.code}</div>
-              <div className="name">{data.seventhCourseRequest.name}</div>
-              <span className="badge pending">{data.seventhCourseRequest.statusLabel}</span>
-              <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 10 }}>
-                {data.seventhCourseRequest.note}
+            {data.seventhCourseRequest ? (
+              <div className="statusCourse">
+                <div className="code">{data.seventhCourseRequest.code}</div>
+                <div className="name">{data.seventhCourseRequest.name}</div>
+                <span className="badge pending">{data.seventhCourseRequest.statusLabel}</span>
+                <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 10 }}>
+                  {data.seventhCourseRequest.note}
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="deadlineSub">مفيش طلب مادة سابعة حاليًا</div>
+            )}
           </div>
-
+          
+          
           <div className="card span12">
             <h3><span className="icon">📢</span> آخر الإشعارات</h3>
             {data.notifications.map((n, i) => (
@@ -201,6 +208,7 @@ function Dashboard() {
               </div>
             ))}
           </div>
+          <SpecializationWidget />
         </div>
       </div>
     </div>

@@ -1,7 +1,7 @@
 // ============ Types matching the real API response (Mahmoud's shape) ============
 interface RawProfile {
   full_name: string
-  specialization: string
+  specialization: string | null
   academic_level: number
   cgpa: number
   completed_hours: number
@@ -21,7 +21,7 @@ interface RawDashboardResponse {
   schedule: RawScheduleItem[]
   registration_deadline: string
   summer_requests: RawSummerRequest[]
-  seventh_course_request: RawSeventhCourseRequest
+  seventh_course_request: RawSeventhCourseRequest | null
   notifications: RawNotification[]
 }
 
@@ -33,7 +33,7 @@ export interface DashboardData {
   schedule: { time: string; slots: (null | { code: string; variant?: 'alt' | 'alt2' })[] }[]
   deadline: { daysLeft: number; dateLabel: string }
   summerRequests: { name: string; status: 'approved' | 'pending' | 'rejected' | 'review'; statusLabel: string }[]
-  seventhCourseRequest: { code: string; name: string; statusLabel: string; note: string }
+  seventhCourseRequest: { code: string; name: string; statusLabel: string; note: string } | null
   notifications: { icon: string; text: string; time: string }[]
 }
 
@@ -100,7 +100,7 @@ function mapToDashboardData(raw: RawDashboardResponse): DashboardData {
     student: {
       name: profile.full_name,
       avatarLetter: profile.full_name.trim().charAt(0),
-      major: profile.specialization,
+      major: profile.specialization ?? 'غير محدد',
       year: YEAR_LABELS[profile.academic_level] ?? `الفرقة ${profile.academic_level}`,
       cgpa: profile.cgpa,
     },
@@ -119,12 +119,14 @@ function mapToDashboardData(raw: RawDashboardResponse): DashboardData {
       status: (r.status as DashboardData['summerRequests'][number]['status']) ?? 'pending',
       statusLabel: STATUS_LABELS[r.status] ?? r.status,
     })),
-    seventhCourseRequest: {
-      code: raw.seventh_course_request.course_code,
-      name: raw.seventh_course_request.course_name,
-      statusLabel: STATUS_LABELS[raw.seventh_course_request.status] ?? raw.seventh_course_request.status,
-      note: `بناءً على معدلك (${profile.cgpa}) — الإدارة هتراجع الطلب قريبًا`,
-    },
+      seventhCourseRequest: raw.seventh_course_request
+      ? {
+          code: raw.seventh_course_request.course_code,
+          name: raw.seventh_course_request.course_name,
+          statusLabel: STATUS_LABELS[raw.seventh_course_request.status] ?? raw.seventh_course_request.status,
+          note: `بناءً على معدلك (${profile.cgpa}) — الإدارة هتراجع الطلب قريبًا`,
+        }
+      : null,
     notifications: raw.notifications.map((n) => ({
       icon: n.icon,
       text: n.text,
