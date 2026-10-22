@@ -466,8 +466,8 @@ def close_semester(semester: Semester):
             # 3. حساب المعدل التراكمي (CGPA)
             current_cgpa = cgpa(student, up_to=semester) or Decimal(0)
 
-          # 4. إنشاء أو تحديث الـ Record (السجل)
-            StudentSemesterRecord.objects.update_or_create(
+          # 4. إنشاء السجل لو مش موجود (بدون تعديل)
+            StudentSemesterRecord.objects.get_or_create(
                 student=student,
                 semester=semester,
                 defaults={
