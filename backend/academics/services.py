@@ -466,15 +466,17 @@ def close_semester(semester: Semester):
             # 3. حساب المعدل التراكمي (CGPA)
             current_cgpa = cgpa(student, up_to=semester) or Decimal(0)
 
-            # 4. إنشاء الـ Record (السجل)
-            StudentSemesterRecord.objects.create(
+          # 4. إنشاء أو تحديث الـ Record (السجل)
+            StudentSemesterRecord.objects.update_or_create(
                 student=student,
                 semester=semester,
-                level_at_time=student.academic_level,
-                semester_gpa=term_gpa,
-                cumulative_gpa=current_cgpa,
-                credits_earned=term_earned_hours,  # <--- التعديل هنا
-                credits_attempted=term_hours,
+                defaults={
+                    'level_at_time': student.academic_level,
+                    'semester_gpa': term_gpa,
+                    'cumulative_gpa': current_cgpa,
+                    'credits_earned': term_earned_hours,
+                    'credits_attempted': term_hours,
+                }
             )
             # 5. تحديث مستوى الطالب الأكاديمي
             new_level = level_from_hours(total_earned_hours)
