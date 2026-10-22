@@ -5,8 +5,11 @@ Engine helpers (read-only rules) + the four services that own multi-table writes
     set_department, approve_seventh_request (+ reject), open_summer_offering, close_semester
 Views and admin actions must call these and never write those tables directly.
 """
-from decimal import Decimal
 
+from django.db import transaction
+from decimal import Decimal
+from academics.models import Semester, Student, StudentSemesterRecord, Enrollment
+from academics.engine import cgpa, counted_attempts, level_from_hours, student_plan
 from django.db import transaction
 from django.utils import timezone
 
@@ -408,3 +411,75 @@ def close_semester(semester):
         student.save(update_fields=["academic_level", "updated_at"])
     semester.is_closed, semester.is_current = True, False
     semester.save(update_fields=["is_closed", "is_current"])
+
+
+
+class DomainError(Exception):
+    pass
+
+def close_semester(semester: Semester):
+    """
+    إغلاق الترم الحالي:
+    1. التأكد من أنه الترم الحالي.
+    2. حساب المعدل الفصلي والتراكمي لكل طالب مسجل.
+    3. تسجيل Snapshot (StudentSemesterRecord).
+    4. ترقية المستوى الأكاديمي للطالب بناءً على ساعاته المجتازة.
+    5. تغيير حالة الترم إلى مغلق (is_current = False).
+    """
+    if not semester.is_current:
+        raise DomainError("لا يمكن إغلاق هذا الترم لأنه ليس الترم الحالي.")
+
+    with transaction.atomic():
+        # جلب كل الطلاب الذين لديهم تسجيلات في هذا الترم
+        students = Student.objects.filter(enrollments__offering__semester=semester).distinct()
+
+        for student in students:
+            # 1. حساب المعدل الفصلي (Semester GPA)
+            term_enrollments = Enrollment.objects.filter(
+                student=student,
+                offering__semester=semester,
+                status__in=[Enrollment.Status.COMPLETED, Enrollment.Status.FAILED]
+            ).select_related('offering__course')
+
+            term_points = Decimal(0)
+            term_hours = 0
+            
+            for e in term_enrollments:
+                h = e.offering.course.credit_hours
+                term_points += e.grade_points * h
+                term_hours += h
+                
+            term_gpa = (term_points / term_hours).quantize(Decimal("0.01")) if term_hours > 0 else Decimal(0)
+
+            # 2. حساب الساعات المجتازة الكلية من خطة الطالب
+            plan = student_plan(student)
+            attempts = counted_attempts(student, up_to=semester)
+            
+            total_earned_hours = sum(
+                info['course'].credit_hours 
+                for cid, info in plan.items() 
+                if cid in attempts and attempts[cid].status == Enrollment.Status.COMPLETED
+            )
+
+            # 3. حساب المعدل التراكمي (CGPA)
+            current_cgpa = cgpa(student, up_to=semester) or Decimal(0)
+
+            # 4. إنشاء الـ Record (السجل)
+            StudentSemesterRecord.objects.create(
+                student=student,
+                semester=semester,
+                level_at_time=student.academic_level,
+                semester_gpa=term_gpa,
+                cumulative_gpa=current_cgpa,
+                credits_earned=total_earned_hours
+            )
+
+            # 5. تحديث مستوى الطالب الأكاديمي
+            new_level = level_from_hours(total_earned_hours)
+            if new_level > student.academic_level:
+                student.academic_level = new_level
+                student.save(update_fields=['academic_level'])
+
+        # أخيرًا: إغلاق الترم
+        semester.is_current = False
+        semester.save(update_fields=['is_current'])
