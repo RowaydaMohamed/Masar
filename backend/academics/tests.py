@@ -2,12 +2,11 @@ from django.core.management import call_command
 from django.test import TestCase
 from unittest.mock import patch
 
-from academics import bylaw_data, services
-from academics.models import (Course, CourseOffering, Enrollment, SeventhCourseRequest, Student,
-                              StudentSemesterRecord)
 from django.contrib.auth import get_user_model
-from django.core.management import call_command
 from django.test import TestCase
+from rest_framework.test import APITestCase
+from datetime import date
+from django.utils import timezone
 
 from academics import bylaw_data, services
 from academics.models import (
@@ -18,6 +17,7 @@ from academics.models import (
     SeventhCourseRequest,
     Student,
     StudentSemesterRecord,
+    Semester,
 )
 
 User = get_user_model()
@@ -190,3 +190,53 @@ class SeedTests(TestCase):
         print("--- END HU323 FULL CHECK ---\n")
 
         print("--- END CANDIDATES ---\n")
+        
+
+class AuthTests(APITestCase):
+    def setUp(self):
+        self.semester = Semester.objects.create(
+            academic_year=2026,
+            term="fall",
+            start_date=date(2026, 9, 20),
+            end_date=date(2027, 1, 15),
+            registration_deadline=timezone.now(),
+            is_current=True,
+        )
+        self.user = User.objects.create_user(
+            username="2024123456",
+            email="student@fci.edu.eg",
+            password="strongpassword123",
+        )
+        self.student = Student.objects.create(
+            user=self.user,
+            university_id="2024123456",
+            full_name="Test Student",
+            admission_semester=self.semester,
+        )
+
+    def test_login_by_university_id(self):
+        response = self.client.post("/api/auth/login/", {
+            "identifier": "2024123456",
+            "password": "strongpassword123",
+        }, format="json")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("access", response.data)
+
+    def test_login_by_email(self):
+        response = self.client.post("/api/auth/login/", {
+            "identifier": "student@fci.edu.eg",
+            "password": "strongpassword123",
+        }, format="json")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("access", response.data)
+
+    def test_login_wrong_password(self):
+        response = self.client.post("/api/auth/login/", {
+            "identifier": "2024123456",
+            "password": "wrongpassword",
+        }, format="json")
+        self.assertEqual(response.status_code, 401)
+
+    def test_me_without_token_is_rejected(self):
+        response = self.client.get("/api/auth/me/")
+        self.assertEqual(response.status_code, 401)
