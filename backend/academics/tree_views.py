@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from academics.engine import (
     student_plan, compute_course_statuses, counted_attempts, cgpa
 )
-from academics.models import Semester, CourseOffering, StudentSemesterRecord
+from academics.models import Semester, CourseOffering, StudentSemesterRecord, Enrollment
 from collections import deque
 
 @api_view(['GET'])
@@ -50,8 +50,9 @@ def requirements_progress(request):
     
     registered_cids = []
     if current_sem:
-        registered_cids = request.user.student.enrollments.filter(
-            status='registered', offering__semester=current_sem
+        # التعديل هنا: استخدام Enrollment مباشرة للأمان
+        registered_cids = Enrollment.objects.filter(
+            student=student, status='registered', offering__semester=current_sem
         ).values_list('offering__course_id', flat=True)
 
     progress = {
@@ -85,12 +86,21 @@ def graduation_path(request):
     student = request.user.student
     plan = student_plan(student)
     attempts = counted_attempts(student)
+    current_sem = Semester.objects.filter(is_current=True).first()
     
     passed_cids = {cid for cid, e in attempts.items() if e.status == 'completed'}
     
+    # التعديل هنا: استبعاد المواد المسجلة في الترم الحالي من خطة الأترام القادمة
+    registered_cids = set()
+    if current_sem:
+        registered_cids = set(Enrollment.objects.filter(
+            student=student, status='registered', offering__semester=current_sem
+        ).values_list('offering__course_id', flat=True))
+    
     remaining_courses = {}
     for cid, info in plan.items():
-        if cid not in passed_cids:
+        # إذا لم ينجح فيها ولم يسجلها حالياً
+        if cid not in passed_cids and cid not in registered_cids:
             remaining_courses[cid] = info['course']
             
     graph = {}
@@ -159,8 +169,9 @@ def student_history(request):
     records = StudentSemesterRecord.objects.filter(student=request.user.student).order_by('semester__start_date')
     history = []
     for r in records:
-        enrollments = r.student.enrollments.filter(
-            offering__semester=r.semester, status__in=['completed', 'failed']
+        # التعديل هنا: استخدام Enrollment مباشرة للأمان
+        enrollments = Enrollment.objects.filter(
+            student=request.user.student, offering__semester=r.semester, status__in=['completed', 'failed']
         ).select_related('offering__course')
         
         courses = [{
