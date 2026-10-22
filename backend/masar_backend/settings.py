@@ -98,19 +98,24 @@ TEMPLATES = [
 WSGI_APPLICATION = 'masar_backend.wsgi.application'
 
 
+
 # Database
 # https://docs.djangoproject.com/en/6.1/ref/settings/#databases
 
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('DATABASE_NAME', 'masar_db'),
+        'NAME': os.environ.get('DATABASE_NAME', 'masar_db_v2'),
         'USER': os.environ.get('DATABASE_USER', 'postgres'),
         'PASSWORD': os.environ.get('DATABASE_PASSWORD', ''),
         'HOST': os.environ.get('DATABASE_HOST', 'localhost'),
         'PORT': os.environ.get('DATABASE_PORT', '5432'),
+        'TEST': {
+            'NAME': 'masar_db_rules_test',
+        },
     }
 }
+
 
 
 # Password validation
