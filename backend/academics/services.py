@@ -471,7 +471,7 @@ def close_semester(semester: Semester):
                 semester_gpa=term_gpa,
                 cumulative_gpa=current_cgpa,
                 credits_earned=total_earned_hours,
-                credits_attempted=term_hours,  # <--- ضيف السطر ده هنا
+                credits_attempted=term_hours,  # <--- ضيف السطر ده
             )
 
             # 5. تحديث مستوى الطالب الأكاديمي
