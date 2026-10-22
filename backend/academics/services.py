@@ -426,8 +426,7 @@ def close_semester(semester: Semester):
     4. ترقية المستوى الأكاديمي للطالب بناءً على ساعاته المجتازة.
     5. تغيير حالة الترم إلى مغلق (is_current = False).
     """
-    if not semester.is_current:
-        raise DomainError("لا يمكن إغلاق هذا الترم لأنه ليس الترم الحالي.")
+    
 
     with transaction.atomic():
         # جلب كل الطلاب الذين لديهم تسجيلات في هذا الترم
