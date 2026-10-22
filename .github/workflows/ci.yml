@@ -75,6 +75,8 @@ jobs:
       - name: Smoke-test migrations and seed command
         if: steps.check.outputs.exists == 'true'
         working-directory: backend
+        env:
+          MASAR_DEMO_PASSWORD: "CI-Test-Only-Password-123!"
         run: |
           python manage.py migrate --noinput
           python manage.py seed_data
