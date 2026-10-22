@@ -1,5 +1,6 @@
 from django.core.management import call_command
 from django.test import TestCase
+from unittest.mock import patch
 
 from academics import bylaw_data, services
 from academics.models import (Course, CourseOffering, Enrollment, SeventhCourseRequest, Student,
@@ -29,7 +30,9 @@ class BylawDataTests(TestCase):
 class SeedTests(TestCase):
     @classmethod
     def setUpTestData(cls):
-        call_command("seed_data", verbosity=0)
+        with patch.dict("os.environ", {"MASAR_DEMO_PASSWORD": "TestOnly-Password-123!"}):
+            call_command("seed_data", verbosity=0)
+        
 
     @staticmethod
     def student(uid):
