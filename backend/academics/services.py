@@ -433,7 +433,7 @@ def close_semester(semester: Semester):
         students = Student.objects.filter(enrollments__offering__semester=semester).distinct()
 
         for student in students:
-            # 1. حساب المعدل الفصلي (Semester GPA)
+           # 1. حساب المعدل الفصلي (Semester GPA) والساعات
             term_enrollments = Enrollment.objects.filter(
                 student=student,
                 offering__semester=semester,
@@ -442,15 +442,18 @@ def close_semester(semester: Semester):
 
             term_points = Decimal(0)
             term_hours = 0
+            term_earned_hours = 0  # الساعات المكتسبة في الترم ده بس
             
             for e in term_enrollments:
                 h = e.offering.course.credit_hours
                 term_points += e.grade_points * h
                 term_hours += h
+                if e.status == Enrollment.Status.COMPLETED:
+                    term_earned_hours += h
                 
             term_gpa = (term_points / term_hours).quantize(Decimal("0.01")) if term_hours > 0 else Decimal(0)
 
-            # 2. حساب الساعات المجتازة الكلية من خطة الطالب
+            # 2. حساب الساعات المجتازة الكلية من خطة الطالب (عشان ترقية المستوى)
             plan = student_plan(student)
             attempts = counted_attempts(student, up_to=semester)
             
@@ -463,17 +466,16 @@ def close_semester(semester: Semester):
             # 3. حساب المعدل التراكمي (CGPA)
             current_cgpa = cgpa(student, up_to=semester) or Decimal(0)
 
-           # 4. إنشاء الـ Record (السجل)
+            # 4. إنشاء الـ Record (السجل)
             StudentSemesterRecord.objects.create(
                 student=student,
                 semester=semester,
                 level_at_time=student.academic_level,
                 semester_gpa=term_gpa,
                 cumulative_gpa=current_cgpa,
-                credits_earned=total_earned_hours,
-                credits_attempted=term_hours,  # <--- ضيف السطر ده
+                credits_earned=term_earned_hours,  # <--- التعديل هنا
+                credits_attempted=term_hours,
             )
-
             # 5. تحديث مستوى الطالب الأكاديمي
             new_level = level_from_hours(total_earned_hours)
             if new_level > student.academic_level:
