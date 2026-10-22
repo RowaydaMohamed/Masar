@@ -1,108 +1,212 @@
 # academics/dashboard_views.py
 
-from django.conf import settings
-from django.db.models import Sum
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from academics import services
 from academics.models import (
-    StudentCourseHistory,
-    ScheduleSlot,
+    Enrollment,
     Notification,
-    SummerRequest,
+    OfferingTimeSlot,
+    Semester,
     SeventhCourseRequest,
+    SummerRequest,
 )
 
 
-@api_view(['GET'])
+@api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def dashboard(request):
-    student = request.user.student  # Ammar's Student <-> User link
+    # The authenticated user's Student profile.
+    student = request.user.student
 
-    # ---- completed hours + graduation progress: computed live, not cached ----
-    # (Student.total_hours_completed exists as a field too — decide with the
-    # team whether that's meant to be kept in sync elsewhere, or whether this
-    # live aggregate should be the single source of truth. Using the live
-    # aggregate here either way, since the sprint doc explicitly asks for that.)
-    completed_hours = (
-        StudentCourseHistory.objects
-        .filter(student=student, status='completed')
-        .aggregate(total=Sum('course__credit_hours'))['total'] or 0
-    )
+    # Current semester may not have been configured yet.
+    current_semester = Semester.objects.filter(is_current=True).first()
 
-    # TODO: confirm — global constant (132) or per-department? see note above.
-    required_hours = getattr(settings, 'TOTAL_GRADUATION_HOURS', 132)
+    # ---------------------------------------------------------
+    # Graduation progress and academic profile
+    # ---------------------------------------------------------
+    completed_hours = services.completed_hours(student)
+
+    # The current bylaw defines a 144-credit-hour degree.
+    required_hours = 144
 
     graduation_progress_pct = (
-        round((completed_hours / required_hours) * 100) if required_hours else 0
+        round((completed_hours / required_hours) * 100)
+        if required_hours
+        else 0
     )
 
-    registered_qs = (
-        StudentCourseHistory.objects
-        .filter(student=student, status='registered')
-        .select_related('course')
+    student_cgpa = services.cgpa(student)
+
+    # ---------------------------------------------------------
+    # Currently registered courses
+    # ---------------------------------------------------------
+    registered_qs = Enrollment.objects.filter(
+        student=student,
+        status=Enrollment.Status.REGISTERED,
     )
+
+    if current_semester:
+        registered_qs = registered_qs.filter(
+            offering__semester=current_semester
+        )
+    else:
+        registered_qs = registered_qs.none()
+
+    registered_qs = registered_qs.select_related(
+        "offering__course",
+        "offering__semester",
+    ).order_by("offering__course__code")
 
     registered_courses = [
-        {"code": h.course.code, "name": h.course.name_ar, "hours": h.course.credit_hours}
-        for h in registered_qs
+        {
+            "code": enrollment.offering.course.code,
+            "name": (
+                enrollment.offering.course.name_ar
+                or enrollment.offering.course.name
+            ),
+            "hours": enrollment.offering.course.credit_hours,
+        }
+        for enrollment in registered_qs
     ]
 
     profile = {
         "full_name": student.full_name,
-        "specialization": student.department.name_ar if student.department else None,
+        "specialization": (
+            (
+                student.department.name_ar
+                or student.department.name
+            )
+            if student.department
+            else None
+        ),
         "academic_level": student.academic_level,
-        "cgpa": float(student.cgpa),
+        "cgpa": float(student_cgpa or 0),
         "completed_hours": completed_hours,
         "required_hours": required_hours,
         "graduation_progress_pct": graduation_progress_pct,
-        "registered_count": registered_qs.count(),
+        "registered_count": len(registered_courses),
     }
+
+    # ---------------------------------------------------------
+    # Weekly schedule for the student's registered courses
+    # ---------------------------------------------------------
+    if current_semester:
+        schedule_qs = (
+            OfferingTimeSlot.objects.filter(
+                offering__semester=current_semester,
+                offering__enrollments__student=student,
+                offering__enrollments__status=Enrollment.Status.REGISTERED,
+            )
+            .select_related("offering__course")
+            .distinct()
+            .order_by("day", "start_time")
+        )
+    else:
+        schedule_qs = OfferingTimeSlot.objects.none()
 
     schedule = [
         {
-            "day": s.day,
-            "start": s.start_time.strftime("%H:%M"),
-            "end": s.end_time.strftime("%H:%M"),
-            "course_code": s.course.code,
+            "day": slot.day,
+            "start": slot.start_time.strftime("%H:%M"),
+            "end": slot.end_time.strftime("%H:%M"),
+            "course_code": slot.offering.course.code,
+            "course_name": (
+                slot.offering.course.name_ar
+                or slot.offering.course.name
+            ),
         }
-        for s in ScheduleSlot.objects.filter(student=student).select_related('course')
+        for slot in schedule_qs
     ]
+
+    # ---------------------------------------------------------
+    # Summer requests
+    # ---------------------------------------------------------
+    summer_qs = SummerRequest.objects.filter(
+        student=student
+    ).select_related("course", "semester").order_by("-created_at")
 
     summer_requests = [
-        {"course_code": r.course.code, "course_name": r.course.name_ar, "status": r.status}
-        for r in SummerRequest.objects.filter(student=student).select_related('course')
+        {
+            "course_code": request.course.code,
+            "course_name": request.course.name_ar or request.course.name,
+            "status": request.status,
+            "semester": request.semester.label,
+        }
+        for request in summer_qs
     ]
 
+    # ---------------------------------------------------------
+    # Seventh-course request
+    # ---------------------------------------------------------
     seventh = (
-        SeventhCourseRequest.objects
-        .filter(student=student)
-        .select_related('course')
-        .order_by('-requested_at')
+        SeventhCourseRequest.objects.filter(student=student)
+        .select_related("offering__course", "offering__semester")
+        .order_by("-created_at")
         .first()
     )
+
     seventh_course_request = (
-        {"course_code": seventh.course.code, "course_name": seventh.course.name_ar, "status": seventh.status}
-        if seventh else None
+        {
+            "course_code": seventh.offering.course.code,
+            "course_name": (
+                seventh.offering.course.name_ar
+                or seventh.offering.course.name
+            ),
+            "status": seventh.status,
+            "created_at": seventh.created_at.isoformat(),
+        }
+        if seventh
+        else None
     )
+
+    # ---------------------------------------------------------
+    # Latest notifications
+    # ---------------------------------------------------------
+    notification_icons = {
+        NotificationType: icon
+        for NotificationType, icon in [
+            ("seventh_approved", "check-circle"),
+            ("seventh_rejected", "x-circle"),
+            ("summer_opened", "book-open"),
+            ("summer_rejected", "x-circle"),
+            ("department_changed", "git-branch"),
+            ("system", "bell"),
+        ]
+    }
 
     notifications = [
-        {"icon": n.icon, "text": n.text, "time": n.created_at.isoformat()}
-        for n in Notification.objects.filter(student=student).order_by('-created_at')[:5]
+        {
+            "icon": notification_icons.get(notification.type, "bell"),
+            "type": notification.type,
+            "text": notification.text_ar or notification.text,
+            "time": notification.created_at.isoformat(),
+            "is_read": notification.is_read,
+        }
+        for notification in Notification.objects.filter(
+            student=student
+        ).order_by("-created_at")[:5]
     ]
 
-    # TODO: no RegistrationDeadline model/constant exists yet — see note above.
-    registration_deadline = getattr(
-        settings, 'REGISTRATION_DEADLINE', "2026-09-20T23:59:00"
+    # ---------------------------------------------------------
+    # Registration deadline
+    # ---------------------------------------------------------
+    registration_deadline = (
+        current_semester.registration_deadline.isoformat()
+        if current_semester
+        else None
     )
 
-    return Response({
-        "profile": profile,
-        "registered_courses": registered_courses,
-        "schedule": schedule,
-        "registration_deadline": registration_deadline,
-        "summer_requests": summer_requests,
-        "seventh_course_request": seventh_course_request,
-        "notifications": notifications,
-    })
+    return Response(
+        {
+            "profile": profile,
+            "registered_courses": registered_courses,
+            "schedule": schedule,
+            "registration_deadline": registration_deadline,
+            "summer_requests": summer_requests,
+            "seventh_course_request": seventh_course_request,
+            "notifications": notifications,
+        }
+    )

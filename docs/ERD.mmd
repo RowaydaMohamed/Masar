@@ -1,0 +1,281 @@
+
+erDiagram
+    auth_user {
+        int id PK
+        varchar username UK
+        varchar password
+        varchar email
+        varchar first_name
+        varchar last_name
+        boolean is_active
+        boolean is_staff
+        boolean is_superuser
+        timestamptz last_login
+        timestamptz date_joined
+    }
+
+    department {
+        bigint id PK
+        varchar code UK
+        varchar name
+        varchar name_ar
+        boolean is_active
+    }
+
+    degree_requirement {
+        bigint id PK
+        varchar scope
+        bigint department_id FK "nullable"
+        varchar type
+        smallint required_hours
+    }
+
+    course {
+        bigint id PK
+        varchar code UK
+        varchar name
+        varchar name_ar
+        text description
+        text description_ar
+        smallint credit_hours
+        smallint lecture_hours
+        smallint lab_hours
+        varchar requirement_group
+        varchar requirement_type "nullable"
+        smallint min_level
+        varchar typical_term
+        boolean is_active
+    }
+
+    department_course {
+        bigint id PK
+        bigint department_id FK
+        bigint course_id FK
+        varchar type
+    }
+
+    course_prerequisite {
+        bigint id PK
+        bigint course_id FK
+        bigint prerequisite_id FK
+        smallint group_number
+    }
+
+    grade_scale {
+        bigint id PK
+        varchar letter UK
+        decimal points
+        decimal min_score
+        boolean is_passing
+    }
+
+    level_threshold {
+        bigint id PK
+        smallint level UK
+        smallint min_earned_hours UK
+    }
+
+    credit_limit_rule {
+        bigint id PK
+        decimal min_cgpa "nullable"
+        decimal max_cgpa "nullable"
+        smallint max_credits
+    }
+
+    system_setting {
+        bigint id PK
+        varchar key UK
+        varchar value
+        varchar description
+        timestamptz updated_at
+    }
+
+    semester {
+        bigint id PK
+        smallint academic_year
+        varchar term
+        date start_date
+        date end_date
+        timestamptz registration_deadline
+        boolean is_current
+        boolean is_closed
+    }
+
+    instructor {
+        bigint id PK
+        varchar name
+        varchar name_ar
+        varchar email UK "nullable"
+    }
+
+    course_offering {
+        bigint id PK
+        bigint course_id FK
+        bigint semester_id FK
+        bigint instructor_id FK "nullable"
+        varchar status
+        int capacity "nullable"
+    }
+
+    offering_time_slot {
+        bigint id PK
+        bigint offering_id FK
+        varchar day
+        time start_time
+        time end_time
+    }
+
+    student {
+        bigint id PK
+        int user_id FK UK
+        varchar university_id UK
+        varchar full_name
+        varchar full_name_ar
+        smallint academic_level
+        varchar status
+        bigint department_id FK "nullable"
+        bigint admission_semester_id FK
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    enrollment {
+        bigint id PK
+        bigint student_id FK
+        bigint offering_id FK
+        varchar status
+        decimal score "nullable"
+        varchar grade_letter "nullable"
+        decimal grade_points "nullable"
+        int graded_by_id FK "nullable"
+        timestamptz graded_at "nullable"
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    student_semester_record {
+        bigint id PK
+        bigint student_id FK
+        bigint semester_id FK
+        smallint level_at_time
+        bigint department_at_time_id FK "nullable"
+        smallint credits_attempted
+        smallint credits_earned
+        smallint cumulative_earned_hours
+        decimal semester_gpa
+        decimal cumulative_gpa
+        timestamptz closed_at
+    }
+
+    student_department_change {
+        bigint id PK
+        bigint student_id FK
+        bigint from_department_id FK "nullable"
+        bigint to_department_id FK
+        bigint semester_id FK
+        timestamptz changed_at
+    }
+
+    student_course_preference {
+        bigint id PK
+        bigint student_id FK
+        bigint course_id FK
+        varchar kind
+        timestamptz created_at
+    }
+
+    summer_request {
+        bigint id PK
+        bigint student_id FK
+        bigint course_id FK
+        bigint semester_id FK
+        bigint fulfilled_by_offering_id FK "nullable"
+        varchar status
+        int decided_by_id FK "nullable"
+        timestamptz decided_at "nullable"
+        varchar decision_reason
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    seventh_course_request {
+        bigint id PK
+        bigint student_id FK
+        bigint offering_id FK
+        varchar status
+        varchar reason
+        int decided_by_id FK "nullable"
+        timestamptz decided_at "nullable"
+        varchar decision_reason
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    specialization_recommendation {
+        bigint id PK
+        bigint student_id FK
+        bigint recommended_department_id FK
+        decimal confidence
+        jsonb top3
+        jsonb input_snapshot
+        varchar model_version
+        timestamptz created_at
+    }
+
+    notification {
+        bigint id PK
+        bigint student_id FK
+        varchar type
+        varchar text
+        varchar text_ar
+        varchar link
+        boolean is_read
+        timestamptz created_at
+    }
+
+    department o|--o{ degree_requirement : "department scope"
+    department ||--o{ department_course : contains
+    course ||--o{ department_course : "department role"
+
+    course ||--o{ course_prerequisite : "target course"
+    course ||--o{ course_prerequisite : "prerequisite course"
+
+    course ||--o{ course_offering : offered_as
+    semester ||--o{ course_offering : contains
+    instructor o|--o{ course_offering : teaches
+    course_offering ||--o{ offering_time_slot : has_slots
+
+    auth_user ||--o| student : profile
+    department o|--o{ student : "current department"
+    semester ||--o{ student : "admission semester"
+
+    student ||--o{ enrollment : attempts
+    course_offering ||--o{ enrollment : registrations
+    auth_user o|--o{ enrollment : grades
+
+    student ||--o{ student_semester_record : history
+    semester ||--o{ student_semester_record : records
+    department o|--o{ student_semester_record : "department snapshot"
+
+    student ||--o{ student_department_change : changes
+    department o|--o{ student_department_change : "from department"
+    department ||--o{ student_department_change : "to department"
+    semester ||--o{ student_department_change : "change semester"
+
+    student ||--o{ student_course_preference : preferences
+    course ||--o{ student_course_preference : preferred
+
+    student ||--o{ summer_request : submits
+    course ||--o{ summer_request : requested
+    semester ||--o{ summer_request : "summer semester"
+    course_offering o|--o{ summer_request : fulfills
+    auth_user o|--o{ summer_request : decides
+
+    student ||--o{ seventh_course_request : submits
+    course_offering ||--o{ seventh_course_request : requested
+    auth_user o|--o{ seventh_course_request : decides
+
+    student ||--o{ specialization_recommendation : receives
+    department ||--o{ specialization_recommendation : recommends
+
+    student ||--o{ notification : receives
