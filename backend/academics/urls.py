@@ -3,6 +3,7 @@ from .auth_views import CustomTokenObtainPairView, UserProfileView, RegisterStud
 from .ai_views import PredictSpecializationView
 from . import dashboard_views, tree_views
 from masar_backend import views as core_views
+from .specialization_views import SpecializationListView
 
 urlpatterns = [
     # Ammar's
@@ -23,4 +24,7 @@ urlpatterns = [
     path('requirements/', tree_views.requirements_progress, name='requirements'),
     path('graduation-path/', tree_views.graduation_path, name='graduation-path'),
     path('me/history/', tree_views.student_history, name='student-history'),
+
+    # Specializations & Trees
+    path('specializations/', SpecializationListView.as_view(), name='specializations_list'),
 ]
