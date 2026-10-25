@@ -2,13 +2,15 @@ from django.urls import path
 from rest_framework_simplejwt.views import TokenRefreshView
 from .auth_views import CustomTokenObtainPairView, UserProfileView, RegisterStudentView
 from .ai_views import PredictSpecializationView
-from . import dashboard_views
+from . import dashboard_views, tree_views
 from masar_backend import views as core_views
 
 urlpatterns = [
     # Core & Dashboard endpoints
     path('ping/', core_views.ping, name='ping'),
     path('courses/', core_views.courses, name='courses'),
+    
+    # Dashboard API
     path('dashboard/', dashboard_views.dashboard, name='dashboard'),
 
     # Auth endpoints
@@ -19,4 +21,10 @@ urlpatterns = [
 
     # AI endpoint
     path('predict/', PredictSpecializationView.as_view(), name='predict_specialization'),
+
+    # Trees & Academics APIs
+    path('curriculum-tree/', tree_views.curriculum_tree, name='curriculum-tree'),
+    path('requirements/', tree_views.requirements_progress, name='requirements'),
+    path('graduation-path/', tree_views.graduation_path, name='graduation-path'),
+    path('me/history/', tree_views.student_history, name='student-history'),
 ]
