@@ -43,7 +43,7 @@ class SpecializationTreeView(APIView):
             shared_map.setdefault(role.course_id, []).append(role.department.code)
 
 
-            items = [
+        items = [
             (c, c.requirement_group, c.requirement_type)
             for c in base_courses
         ] + [
