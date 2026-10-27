@@ -16,6 +16,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import User
 from django.core.management import call_command
 from django.test import TestCase
+from datetime import date
 from rest_framework.test import APITestCase
 
 
@@ -247,7 +248,7 @@ class StudentViewTests(APITestCase):
         self.assertEqual(self.student.department, self.dept)
 
     def test_unauthenticated_access_is_blocked(self):
-        # Strip the token away to simulate a logged-out user or hacker
+        # Strip the token away to simulate a logged-out user
         self.client.force_authenticate(user=None)
         
         response = self.client.get("/api/specializations/CS/tree/")
