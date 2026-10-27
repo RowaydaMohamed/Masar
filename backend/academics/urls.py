@@ -6,6 +6,7 @@ from . import dashboard_views, tree_views
 from masar_backend import views as core_views
 from .specialization_views import SpecializationListView, SpecializationTreeView
 from .course_views import CourseDetailView
+from .student_views import UpdateSpecializationView
 
 urlpatterns = [
     # Core & Dashboard endpoints
@@ -33,7 +34,9 @@ urlpatterns = [
     # Specializations & Trees
     path('specializations/', SpecializationListView.as_view(), name='specializations_list'),
     path('specializations/<str:code>/tree/', SpecializationTreeView.as_view(), name='specialization_tree'),
+    path('me/specialization/', UpdateSpecializationView.as_view(), name='update_specialization'),
     
     # Course Details
     path('courses/<str:code>/', CourseDetailView.as_view(), name='course_detail'),
+    
 ]
