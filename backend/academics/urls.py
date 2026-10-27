@@ -7,7 +7,7 @@ from masar_backend import views as core_views
 from .specialization_views import SpecializationListView, SpecializationTreeView
 from .course_views import CourseDetailView
 from .student_views import UpdateSpecializationView
-from .request_views import SubmitSeventhRequestView
+from .request_views import SubmitSeventhRequestView, SubmitSummerRequestView
 
 urlpatterns = [
     # Core & Dashboard endpoints
@@ -42,4 +42,5 @@ urlpatterns = [
     
     # Student Requests
     path('seventh-request/', SubmitSeventhRequestView.as_view(), name='submit_seventh_request'),
+    path('summer-requests/', SubmitSummerRequestView.as_view(), name='submit_summer_requests'),
 ]
