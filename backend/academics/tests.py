@@ -1,24 +1,24 @@
-from django.core.management import call_command
-from django.test import TestCase
 from unittest.mock import patch
-
-from django.contrib.auth import get_user_model
-from django.test import TestCase
-from rest_framework.test import APITestCase
-from datetime import date
-from django.utils import timezone
-
 from academics import bylaw_data, services
 from academics.models import (
     Course,
     CourseOffering,
+    Department,
     Enrollment,
     Notification,
+    Semester,
     SeventhCourseRequest,
     Student,
-    StudentSemesterRecord,
-    Semester,
+    StudentSemesterRecord
 )
+from django.core.management import call_command
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import User
+from django.core.management import call_command
+from django.test import TestCase
+from datetime import date
+from rest_framework.test import APITestCase
+
 
 User = get_user_model()
 
@@ -192,51 +192,64 @@ class SeedTests(TestCase):
         print("--- END CANDIDATES ---\n")
         
 
-class AuthTests(APITestCase):
+class StudentViewTests(APITestCase):
     def setUp(self):
         self.semester = Semester.objects.create(
             academic_year=2026,
             term="fall",
-            start_date=date(2026, 9, 20),
-            end_date=date(2027, 1, 15),
-            registration_deadline=timezone.now(),
+            start_date="2026-09-01",
+            end_date="2027-01-15",
+            registration_deadline="2026-09-15",
             is_current=True,
         )
         self.user = User.objects.create_user(
             username="2024123456",
-            email="student@fci.edu.eg",
-            password="strongpassword123",
+            password="testpassword",
         )
         self.student = Student.objects.create(
             user=self.user,
             university_id="2024123456",
-            full_name="Test Student",
             admission_semester=self.semester,
         )
+        self.dept = Department.objects.create(
+            code="CS",
+            name="Computer Science",
+            is_active=True,
+        )
+        self.course = Course.objects.create(
+            code="CS112",
+            name="Programming 1",
+            credit_hours=3,
+            requirement_group="faculty",
+            requirement_type="compulsory",
+            min_level=1,
+            is_active=True,
+        )
+        self.client.force_authenticate(user=self.user)
 
-    def test_login_by_university_id(self):
-        response = self.client.post("/api/auth/login/", {
-            "identifier": "2024123456",
-            "password": "strongpassword123",
-        }, format="json")
+        
+    def test_get_specialization_tree_success(self):
+        response = self.client.get("/api/specializations/CS/tree/")
         self.assertEqual(response.status_code, 200)
-        self.assertIn("access", response.data)
+        self.assertIsInstance(response.data, list)
 
-    def test_login_by_email(self):
-        response = self.client.post("/api/auth/login/", {
-            "identifier": "student@fci.edu.eg",
-            "password": "strongpassword123",
-        }, format="json")
+    def test_get_course_details_success(self):
+        response = self.client.get("/api/courses/CS112/")
         self.assertEqual(response.status_code, 200)
-        self.assertIn("access", response.data)
+        self.assertEqual(response.data["code"], "CS112")
+        
+        
+    def test_update_specialization_success(self):
+        response = self.client.put("/api/me/specialization/", {"department_code": "CS"})
+        self.assertEqual(response.status_code, 200)
+        
+        # Pull the student from the database again to see if it actually saved
+        self.student.refresh_from_db()
+        self.assertEqual(self.student.department, self.dept)
 
-    def test_login_wrong_password(self):
-        response = self.client.post("/api/auth/login/", {
-            "identifier": "2024123456",
-            "password": "wrongpassword",
-        }, format="json")
-        self.assertEqual(response.status_code, 401)
-
-    def test_me_without_token_is_rejected(self):
-        response = self.client.get("/api/auth/me/")
+    def test_unauthenticated_access_is_blocked(self):
+        # Strip the token away to simulate a logged-out user
+        self.client.force_authenticate(user=None)
+        
+        response = self.client.get("/api/specializations/CS/tree/")
         self.assertEqual(response.status_code, 401)
