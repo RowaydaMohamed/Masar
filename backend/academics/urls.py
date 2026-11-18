@@ -4,6 +4,10 @@ from .auth_views import CustomTokenObtainPairView, UserProfileView, RegisterStud
 from .ai_views import PredictSpecializationView
 from . import dashboard_views, tree_views
 from masar_backend import views as core_views
+from .specialization_views import SpecializationListView, SpecializationTreeView
+from .course_views import CourseDetailView
+from .student_views import UpdateSpecializationView
+from .request_views import SubmitSeventhRequestView, SubmitSummerRequestView
 
 urlpatterns = [
     # Core & Dashboard endpoints
@@ -27,4 +31,16 @@ urlpatterns = [
     path('requirements/', tree_views.requirements_progress, name='requirements'),
     path('graduation-path/', tree_views.graduation_path, name='graduation-path'),
     path('me/history/', tree_views.student_history, name='student-history'),
+
+    # Specializations & Trees
+    path('specializations/', SpecializationListView.as_view(), name='specializations_list'),
+    path('specializations/<str:code>/tree/', SpecializationTreeView.as_view(), name='specialization_tree'),
+    path('me/specialization/', UpdateSpecializationView.as_view(), name='update_specialization'),
+    
+    # Course Details
+    path('courses/<str:code>/', CourseDetailView.as_view(), name='course_detail'),
+    
+    # Student Requests
+    path('seventh-request/', SubmitSeventhRequestView.as_view(), name='submit_seventh_request'),
+    path('summer-requests/', SubmitSummerRequestView.as_view(), name='submit_summer_requests'),
 ]

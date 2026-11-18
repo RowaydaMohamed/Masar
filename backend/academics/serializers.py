@@ -1,14 +1,11 @@
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework.exceptions import AuthenticationFailed
-from .models import Student, Semester
+from .models import Student, Semester, Department, DegreeRequirement
 from rest_framework import serializers
 from django.contrib.auth.models import User
 from django.db import transaction
 
 
-# For auth_views.py
-
-# Replacing the email or the "identifier" with the students user name
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -17,12 +14,12 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
         identifier = attrs.get('username') or attrs.get('identifier')
         
-        if "@" in identifier:# if a user used an email to sign in
+        if "@" in identifier:
             try:
                 user = User.objects.get(email=identifier)
                 attrs['username'] = user.username
             except User.DoesNotExist:
-                    raise AuthenticationFailed("Invalid email or password.")
+                raise AuthenticationFailed("Invalid email or password.")
         else:
             attrs['username'] = identifier
         attrs.pop('identifier', None)
@@ -40,7 +37,6 @@ class StudentSerializer(serializers.ModelSerializer):
         fields = [
             'university_id', 'email', 'full_name', 'full_name_ar',
             'academic_level', 'department', 'standing', 'status'
-            
         ]
 
     def get_department(self, obj):
@@ -54,10 +50,14 @@ class StudentSerializer(serializers.ModelSerializer):
 
     def get_standing(self, obj):
         try:
-            from .engine import standing
-            return standing(obj)
-        except ImportError:
+            from . import services
+            sem = services.current_semester()
+            if obj.academic_level == 1 and sem.academic_year <= obj.admission_semester.academic_year:
+                return "new"
+            return "continuing"
+        except Exception:
             return "new" if obj.academic_level == 1 else "continuing"
+
 
 class RegisterStudentSerializer(serializers.ModelSerializer):
     university_id = serializers.CharField(write_only=True)
@@ -70,8 +70,10 @@ class RegisterStudentSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = User
-        fields = ['university_id', 'full_name', 'full_name_ar', 'email',
-                'password', 'academic_level', 'admission_semester_id']
+        fields = [
+            'university_id', 'full_name', 'full_name_ar', 'email',
+            'password', 'academic_level', 'admission_semester_id'
+        ]
         
     def create(self, validated_data):
         semester_id = validated_data.get('admission_semester_id')
@@ -102,3 +104,26 @@ class RegisterStudentSerializer(serializers.ModelSerializer):
                 admission_semester=semester,
             )
         return user
+
+
+class DepartmentSerializer(serializers.ModelSerializer):
+    compulsory_hours = serializers.SerializerMethodField()
+    elective_hours = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Department
+        fields = ['code', 'name', 'name_ar', 'compulsory_hours', 'elective_hours']
+
+    def get_compulsory_hours(self, obj):
+        req = obj.degree_requirements.filter(
+            scope=DegreeRequirement.Scope.DEPARTMENT,
+            type=DegreeRequirement.Type.COMPULSORY,
+        ).first()
+        return req.required_hours if req else 39
+
+    def get_elective_hours(self, obj):
+        req = obj.degree_requirements.filter(
+            scope=DegreeRequirement.Scope.DEPARTMENT,
+            type=DegreeRequirement.Type.ELECTIVE,
+        ).first()
+        return req.required_hours if req else 21
