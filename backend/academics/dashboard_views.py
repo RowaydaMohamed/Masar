@@ -1,10 +1,9 @@
-# academics/dashboard_views.py
-
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from academics import services
+# التعديل هنا: استدعاء دوال المحرك الجديد بدلاً من services
+from academics.engine import cgpa, standing, student_plan, counted_attempts
 from academics.models import (
     Enrollment,
     Notification,
@@ -25,9 +24,17 @@ def dashboard(request):
     current_semester = Semester.objects.filter(is_current=True).first()
 
     # ---------------------------------------------------------
-    # Graduation progress and academic profile
+    # Graduation progress and academic profile (Updated to Engine)
     # ---------------------------------------------------------
-    completed_hours = services.completed_hours(student)
+    plan = student_plan(student)
+    attempts = counted_attempts(student)
+    
+    # حساب الساعات المجتازة من الخطة فقط باستخدام المحرك
+    completed_hours = sum(
+        info['course'].credit_hours 
+        for cid, info in plan.items() 
+        if cid in attempts and attempts[cid].status == Enrollment.Status.COMPLETED
+    )
 
     # The current bylaw defines a 144-credit-hour degree.
     required_hours = 144
@@ -38,7 +45,8 @@ def dashboard(request):
         else 0
     )
 
-    student_cgpa = services.cgpa(student)
+    # حساب المعدل باستخدام المحرك
+    student_cgpa = cgpa(student)
 
     # ---------------------------------------------------------
     # Currently registered courses
@@ -83,6 +91,8 @@ def dashboard(request):
             else None
         ),
         "academic_level": student.academic_level,
+        # إضافة تصنيف الطالب (standing) من المحرك
+        "standing_label": standing(student, current_semester) if current_semester else "",
         "cgpa": float(student_cgpa or 0),
         "completed_hours": completed_hours,
         "required_hours": required_hours,
@@ -195,7 +205,7 @@ def dashboard(request):
     # ---------------------------------------------------------
     registration_deadline = (
         current_semester.registration_deadline.isoformat()
-        if current_semester
+        if current_semester and getattr(current_semester, 'registration_deadline', None)
         else None
     )
 
