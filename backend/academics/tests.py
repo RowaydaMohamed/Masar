@@ -1,9 +1,10 @@
-
+from datetime import datetime
 from unittest.mock import patch
 
+from django.contrib.auth import get_user_model
 from django.core.management import call_command
 from django.test import TestCase
-from django.contrib.auth import get_user_model
+from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from academics import bylaw_data, services
@@ -17,7 +18,13 @@ from academics.models import (
     Semester,
     SeventhCourseRequest,
     Student,
+    StudentCoursePreference,
     StudentSemesterRecord,
+)
+from academics.pathfinder_adapter import (
+    build_pathfinder_inputs,
+    is_course_compulsory_for_student,
+    recalculate_student_plan,
 )
 
 User = get_user_model()
@@ -245,6 +252,7 @@ class SeedTests(TestCase):
 
     def test_saved_graduation_plan_defaults(self):
         student = self.student("20230006")
+        SavedGraduationPlan.objects.filter(student=student).delete()
         plan = SavedGraduationPlan.objects.create(student=student)
 
         self.assertEqual(plan.plan_data, {})
@@ -254,10 +262,12 @@ class SeedTests(TestCase):
 
     def test_mark_plan_stale(self):
         student = self.student("20230006")
-        plan = SavedGraduationPlan.objects.create(
+        plan, _ = SavedGraduationPlan.objects.update_or_create(
             student=student,
-            plan_data={"courses": ["CS111"]},
-            is_stale=False,
+            defaults={
+                "plan_data": {"courses": ["CS111"]},
+                "is_stale": False,
+            },
         )
 
         services.mark_plan_stale(student)
@@ -265,6 +275,53 @@ class SeedTests(TestCase):
         plan.refresh_from_db()
         self.assertTrue(plan.is_stale)
         self.assertIsNotNone(plan.updated_at)
+
+    def test_pathfinder_adapter_dual_run_and_stability_gate(self):
+        student = self.student("20240007")
+        inputs = build_pathfinder_inputs(student)
+
+        self.assertIn("student", inputs)
+        self.assertIn("settings", inputs)
+        self.assertIn("starting_term", inputs)
+        self.assertIn("elective_hours_remaining", inputs)
+        self.assertIn("courses", inputs)
+
+        plan = recalculate_student_plan(student)
+        self.assertFalse(plan.is_stale)
+        self.assertIn("semesters", plan.plan_data)
+        self.assertIn("baseline_semesters", plan.plan_data)
+        self.assertIn("estimated_semesters", plan.plan_data)
+        self.assertTrue(plan.projected_graduation_term)
+
+        # Re-running with identical valid state preserves semester layout via Stability Gate
+        original_semesters = plan.plan_data["semesters"]
+        plan_rerun = recalculate_student_plan(student)
+        self.assertEqual(plan_rerun.plan_data["semesters"], original_semesters)
+
+        # Avoiding a scheduled elective invalidates the Stability Gate and replans without it
+        scheduled_elective_code = next(
+            (
+                c["code"]
+                for sem in original_semesters
+                for c in sem["courses"]
+                if c["category"] == "elective"
+            ),
+            None,
+        )
+        if scheduled_elective_code:
+            elective_course = Course.objects.get(code=scheduled_elective_code)
+            StudentCoursePreference.objects.update_or_create(
+                student=student,
+                course=elective_course,
+                defaults={"kind": StudentCoursePreference.Kind.AVOID},
+            )
+            plan_after_avoid = recalculate_student_plan(student)
+            new_codes = {
+                c["code"]
+                for sem in plan_after_avoid.plan_data["semesters"]
+                for c in sem["courses"]
+            }
+            self.assertNotIn(scheduled_elective_code, new_codes)
 
 
 class StudentViewTests(APITestCase):
@@ -274,7 +331,7 @@ class StudentViewTests(APITestCase):
             term="fall",
             start_date="2026-09-01",
             end_date="2027-01-15",
-            registration_deadline="2026-09-15",
+            registration_deadline=timezone.make_aware(datetime(2026, 9, 15, 0, 0)),
             is_current=True,
         )
 
@@ -305,6 +362,16 @@ class StudentViewTests(APITestCase):
             is_active=True,
         )
 
+        self.elective_course = Course.objects.create(
+            code="HU399",
+            name="Selected Topics in Humanities",
+            credit_hours=3,
+            requirement_group="general",
+            requirement_type="elective",
+            min_level=1,
+            is_active=True,
+        )
+
         self.client.force_authenticate(user=self.user)
 
     def test_get_specialization_tree_success(self):
@@ -326,6 +393,51 @@ class StudentViewTests(APITestCase):
 
         self.student.refresh_from_db()
         self.assertEqual(self.student.department, self.dept)
+        self.assertTrue(
+            SavedGraduationPlan.objects.filter(
+                student=self.student,
+                is_stale=False,
+            ).exists()
+        )
+
+    def test_preferences_compulsory_avoid_guardrail_and_recalculation(self):
+        self.assertTrue(is_course_compulsory_for_student(self.student, self.course))
+        self.assertFalse(is_course_compulsory_for_student(self.student, self.elective_course))
+
+        # Compulsory course in avoid list must be rejected with 400
+        bad_resp = self.client.put(
+            "/api/me/preferences/",
+            [{"course_code": "CS112", "kind": "avoid"}],
+            format="json",
+        )
+        self.assertEqual(bad_resp.status_code, 400)
+
+        # Valid elective preference succeeds and updates SavedGraduationPlan
+        ok_resp = self.client.put(
+            "/api/me/preferences/",
+            [{"course_code": "HU399", "kind": "want"}],
+            format="json",
+        )
+        self.assertEqual(ok_resp.status_code, 200)
+        self.assertTrue(
+            StudentCoursePreference.objects.filter(
+                student=self.student,
+                course=self.elective_course,
+                kind=StudentCoursePreference.Kind.WANT,
+            ).exists()
+        )
+        self.assertTrue(
+            SavedGraduationPlan.objects.filter(
+                student=self.student,
+                is_stale=False,
+            ).exists()
+        )
+
+        # GET returns saved preferences
+        get_resp = self.client.get("/api/me/preferences/")
+        self.assertEqual(get_resp.status_code, 200)
+        self.assertEqual(len(get_resp.data), 1)
+        self.assertEqual(get_resp.data[0]["course_code"], "HU399")
 
     def test_unauthenticated_access_is_blocked(self):
         self.client.force_authenticate(user=None)

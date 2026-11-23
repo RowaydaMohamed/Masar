@@ -6,7 +6,7 @@ from . import dashboard_views, tree_views
 from masar_backend import views as core_views
 from .specialization_views import SpecializationListView, SpecializationTreeView
 from .course_views import CourseDetailView
-from .student_views import UpdateSpecializationView
+from .student_views import UpdateSpecializationView, StudentPreferencesView
 from .request_views import SubmitSeventhRequestView, SubmitSummerRequestView
 
 urlpatterns = [
@@ -36,11 +36,13 @@ urlpatterns = [
     path('specializations/', SpecializationListView.as_view(), name='specializations_list'),
     path('specializations/<str:code>/tree/', SpecializationTreeView.as_view(), name='specialization_tree'),
     path('me/specialization/', UpdateSpecializationView.as_view(), name='update_specialization'),
-    
+    path('me/preferences/', StudentPreferencesView.as_view(), name='student_preferences'),
     # Course Details
     path('courses/<str:code>/', CourseDetailView.as_view(), name='course_detail'),
     
     # Student Requests
     path('seventh-request/', SubmitSeventhRequestView.as_view(), name='submit_seventh_request'),
     path('summer-requests/', SubmitSummerRequestView.as_view(), name='submit_summer_requests'),
+
+
 ]
