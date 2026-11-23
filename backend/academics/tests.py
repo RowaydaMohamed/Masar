@@ -1,4 +1,11 @@
+
 from unittest.mock import patch
+
+from django.core.management import call_command
+from django.test import TestCase
+from django.contrib.auth import get_user_model
+from rest_framework.test import APITestCase
+
 from academics import bylaw_data, services
 from academics.models import (
     Course,
@@ -6,21 +13,15 @@ from academics.models import (
     Department,
     Enrollment,
     Notification,
+    SavedGraduationPlan,
     Semester,
     SeventhCourseRequest,
     Student,
-    StudentSemesterRecord
+    StudentSemesterRecord,
 )
-from django.core.management import call_command
-from django.contrib.auth import get_user_model
-from django.contrib.auth.models import User
-from django.core.management import call_command
-from django.test import TestCase
-from datetime import date
-from rest_framework.test import APITestCase
-
 
 User = get_user_model()
+
 
 class BylawDataTests(TestCase):
     def test_bylaw_data_is_consistent(self):
@@ -32,7 +33,6 @@ class SeedTests(TestCase):
     def setUpTestData(cls):
         with patch.dict("os.environ", {"MASAR_DEMO_PASSWORD": "TestOnly-Password-123!"}):
             call_command("seed_data", verbosity=0)
-        
 
     @staticmethod
     def student(uid):
@@ -40,55 +40,97 @@ class SeedTests(TestCase):
 
     @staticmethod
     def offering(code):
-        return CourseOffering.objects.get(course__code=code, semester=services.current_semester())
+        return CourseOffering.objects.get(
+            course__code=code,
+            semester=services.current_semester(),
+        )
 
     def test_check_seed_passes(self):
         call_command("check_seed", verbosity=0)
 
     def test_seed_is_idempotent(self):
-        before = (Course.objects.count(), Enrollment.objects.count(), StudentSemesterRecord.objects.count())
+        before = (
+            Course.objects.count(),
+            Enrollment.objects.count(),
+            StudentSemesterRecord.objects.count(),
+        )
         call_command("seed_data", verbosity=0)
-        self.assertEqual(before, (Course.objects.count(), Enrollment.objects.count(),
-                                  StudentSemesterRecord.objects.count()))
+        self.assertEqual(
+            before,
+            (
+                Course.objects.count(),
+                Enrollment.objects.count(),
+                StudentSemesterRecord.objects.count(),
+            ),
+        )
 
     def test_retake_counts_only_latest_attempt(self):
-        s = self.student("20230005")                    # failed IT111, passed the retake
+        s = self.student("20230005")
         it111 = Course.objects.get(code="IT111")
-        self.assertEqual(services.counted_attempts(s)[it111.id].status, "completed")
-        self.assertEqual(Enrollment.objects.filter(student=s, offering__course=it111).count(), 2)
+        self.assertEqual(
+            services.counted_attempts(s)[it111.id].status,
+            "completed",
+        )
+        self.assertEqual(
+            Enrollment.objects.filter(
+                student=s,
+                offering__course=it111,
+            ).count(),
+            2,
+        )
 
     def test_failed_prerequisite_blocks_registration(self):
-        s = self.student("20230004")                    # failed CS214, never retook it
-        self.assertEqual(services.counted_attempts(s)[Course.objects.get(code="CS214").id].status, "failed")
-        self.assertIn("prerequisites_not_met", services.can_register(s, self.offering("CS316")))
+        s = self.student("20230004")
+        self.assertEqual(
+            services.counted_attempts(s)[
+                Course.objects.get(code="CS214").id
+            ].status,
+            "failed",
+        )
+        self.assertIn(
+            "prerequisites_not_met",
+            services.can_register(s, self.offering("CS316")),
+        )
 
     def test_passed_course_cannot_be_retaken(self):
         s = self.student("20230003")
-        self.assertIn("already_passed", services.can_register(s, self.offering("CS214")))
+        self.assertIn(
+            "already_passed",
+            services.can_register(s, self.offering("CS214")),
+        )
 
     def test_levels_and_snapshots(self):
         self.assertEqual(self.student("20230006").academic_level, 4)
         self.assertEqual(self.student("20250002").academic_level, 1)
-        self.assertEqual(StudentSemesterRecord.objects.filter(student__university_id="20230003").count(), 5)
+        self.assertEqual(
+            StudentSemesterRecord.objects.filter(
+                student__university_id="20230003"
+            ).count(),
+            5,
+        )
 
     def test_seventh_course_eligibility(self):
         sem = services.current_semester()
-        ok, reasons = services.seventh_course_eligibility(self.student("20240008"), sem)
+
+        ok, reasons = services.seventh_course_eligibility(
+            self.student("20240008"),
+            sem,
+        )
         self.assertFalse(ok)
         self.assertIn("cgpa_below_minimum", reasons)
-        ok, reasons = services.seventh_course_eligibility(self.student("20240007"), sem)
-        self.assertEqual(reasons, ["pending_request_exists"])   # CGPA qualifies; request already pending
+
+        ok, reasons = services.seventh_course_eligibility(
+            self.student("20240007"),
+            sem,
+        )
+        self.assertEqual(reasons, ["pending_request_exists"])
 
     def test_approve_seventh_request_creates_enrollment(self):
-        # Use a seeded student whose level is suitable for HU323.
         student = self.student("20230006")
         offering = self.offering("HU323")
 
-        # Remove only this offering's time slots in the isolated test DB
-        # so unrelated schedule conflicts do not affect this service test.
         offering.time_slots.all().delete()
 
-        # Create a request for this student in the test database.
         request, _ = SeventhCourseRequest.objects.get_or_create(
             student=student,
             offering=offering,
@@ -97,7 +139,6 @@ class SeedTests(TestCase):
             },
         )
 
-        # Ensure the request is pending for this test.
         request.status = SeventhCourseRequest._meta.get_field(
             "status"
         ).default
@@ -130,16 +171,28 @@ class SeedTests(TestCase):
         self.assertEqual(request.decided_by, admin)
         self.assertIsNotNone(request.decided_at)
 
-
     def test_open_summer_offering_links_requests(self):
-        from academics.models import Semester, SummerRequest
+        from academics.models import SummerRequest
+
         summer = Semester.objects.get(term="summer")
-        admin = Student.objects.first().user.__class__.objects.get(username="demo_admin")
-        _, n = services.open_summer_offering(Course.objects.get(code="IS321"), summer, admin)
+        admin = Student.objects.first().user.__class__.objects.get(
+            username="demo_admin"
+        )
+
+        _, n = services.open_summer_offering(
+            Course.objects.get(code="IS321"),
+            summer,
+            admin,
+        )
+
         self.assertEqual(n, 2)
-        self.assertEqual(SummerRequest.objects.filter(status="approved", fulfilled_by_offering__isnull=False).count(), 2)
-
-
+        self.assertEqual(
+            SummerRequest.objects.filter(
+                status="approved",
+                fulfilled_by_offering__isnull=False,
+            ).count(),
+            2,
+        )
 
     def test_debug_seventh_course_candidates(self):
         student = self.student("20240007")
@@ -171,7 +224,7 @@ class SeedTests(TestCase):
                 "| reasons:", reasons,
             )
 
-            target = CourseOffering.objects.get(
+        target = CourseOffering.objects.get(
             semester=sem,
             course__code="HU323",
         )
@@ -188,9 +241,31 @@ class SeedTests(TestCase):
             ),
         )
         print("--- END HU323 FULL CHECK ---\n")
-
         print("--- END CANDIDATES ---\n")
-        
+
+    def test_saved_graduation_plan_defaults(self):
+        student = self.student("20230006")
+        plan = SavedGraduationPlan.objects.create(student=student)
+
+        self.assertEqual(plan.plan_data, {})
+        self.assertEqual(plan.projected_graduation_term, "")
+        self.assertTrue(plan.is_stale)
+        self.assertIsNotNone(plan.updated_at)
+
+    def test_mark_plan_stale(self):
+        student = self.student("20230006")
+        plan = SavedGraduationPlan.objects.create(
+            student=student,
+            plan_data={"courses": ["CS111"]},
+            is_stale=False,
+        )
+
+        services.mark_plan_stale(student)
+
+        plan.refresh_from_db()
+        self.assertTrue(plan.is_stale)
+        self.assertIsNotNone(plan.updated_at)
+
 
 class StudentViewTests(APITestCase):
     def setUp(self):
@@ -202,20 +277,24 @@ class StudentViewTests(APITestCase):
             registration_deadline="2026-09-15",
             is_current=True,
         )
+
         self.user = User.objects.create_user(
             username="2024123456",
             password="testpassword",
         )
+
         self.student = Student.objects.create(
             user=self.user,
             university_id="2024123456",
             admission_semester=self.semester,
         )
+
         self.dept = Department.objects.create(
             code="CS",
             name="Computer Science",
             is_active=True,
         )
+
         self.course = Course.objects.create(
             code="CS112",
             name="Programming 1",
@@ -225,9 +304,9 @@ class StudentViewTests(APITestCase):
             min_level=1,
             is_active=True,
         )
+
         self.client.force_authenticate(user=self.user)
 
-        
     def test_get_specialization_tree_success(self):
         response = self.client.get("/api/specializations/CS/tree/")
         self.assertEqual(response.status_code, 200)
@@ -237,19 +316,19 @@ class StudentViewTests(APITestCase):
         response = self.client.get("/api/courses/CS112/")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["code"], "CS112")
-        
-        
+
     def test_update_specialization_success(self):
-        response = self.client.put("/api/me/specialization/", {"department_code": "CS"})
+        response = self.client.put(
+            "/api/me/specialization/",
+            {"department_code": "CS"},
+        )
         self.assertEqual(response.status_code, 200)
-        
-        # Pull the student from the database again to see if it actually saved
+
         self.student.refresh_from_db()
         self.assertEqual(self.student.department, self.dept)
 
     def test_unauthenticated_access_is_blocked(self):
-        # Strip the token away to simulate a logged-out user
         self.client.force_authenticate(user=None)
-        
+
         response = self.client.get("/api/specializations/CS/tree/")
         self.assertEqual(response.status_code, 401)

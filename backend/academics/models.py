@@ -191,7 +191,8 @@ class Course(models.Model):
     # compulsory/elective for general+faculty courses; NULL for department courses
     # (their role lives on DepartmentCourse, per department).
     requirement_type = models.CharField(max_length=12, choices=Type.choices, null=True, blank=True)
-    min_level = models.PositiveSmallIntegerField(default=1)       # first digit of the code
+    min_level = models.PositiveSmallIntegerField(default=1)
+    min_earned_hours = models.PositiveSmallIntegerField(default=8)
     typical_term = models.CharField(max_length=6, choices=Term.choices, default=Term.BOTH)
     is_active = models.BooleanField(default=True)                  # retire, never delete
 
@@ -448,6 +449,19 @@ class Student(models.Model):
     def __str__(self):
         return f"{self.university_id} {self.full_name}"
 
+class SavedGraduationPlan(models.Model):
+    student = models.OneToOneField(
+        Student,
+        on_delete=models.CASCADE,
+        related_name="graduation_plan"
+    )
+    plan_data = models.JSONField(blank=True, default=dict)
+    projected_graduation_term = models.CharField(max_length=48, blank=True, default="")
+    is_stale = models.BooleanField(default=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Graduation Plan - {self.student}"
 
 class Enrollment(models.Model):
     """One row per ATTEMPT. Never deleted; a withdrawal sets status='withdrawn'.

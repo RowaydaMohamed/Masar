@@ -121,18 +121,46 @@ class Command(BaseCommand):
             "department courses have NULL requirement type",
         )
 
+        expected_courses = data.all_courses()
+
         bad_levels = [
             course.code
             for course in Course.objects.all()
-            if len(course.code) < 3
-            or not course.code[2].isdigit()
-            or course.min_level != int(course.code[2])
+            if course.min_level
+            != expected_courses.get(course.code, {}).get("min_level")
         ]
 
         check(
             not bad_levels,
-            f"min_level matches the level digit in course codes: {bad_levels}",
+            f"min_level matches bylaw data: {bad_levels}",
         )
+
+        bad_earned_hours = [
+            course.code
+            for course in Course.objects.all()
+            if course.min_earned_hours
+            != expected_courses.get(course.code, {}).get("min_earned_hours")
+        ]
+
+        check(
+            not bad_earned_hours,
+            f"min_earned_hours matches bylaw data: {bad_earned_hours}",
+        )
+
+        bad_terms = [
+            course.code
+            for course in Course.objects.all()
+            if course.typical_term
+            != expected_courses.get(course.code, {}).get("typical_term")
+        ]
+
+        check(
+            not bad_terms,
+            f"typical_term matches bylaw data: {bad_terms}",
+        )
+
+
+
 
         check(
             not DepartmentCourse.objects.exclude(

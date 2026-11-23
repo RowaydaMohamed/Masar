@@ -242,7 +242,8 @@ class Command(BaseCommand):
                     "requirement_group": d["group"],
                     "requirement_type": d["type"],
                     "min_level": d["min_level"],
-                    "typical_term": Course.Term.BOTH,
+                    "min_earned_hours": d["min_earned_hours"],
+                    "typical_term": d["typical_term"],
                     "is_active": True,
                 },
             )
