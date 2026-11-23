@@ -15,11 +15,11 @@ from academics.models import (
     CourseOffering,
     Enrollment,
     Notification,
+    SavedGraduationPlan,
     SeventhCourseRequest,
     Student,
     StudentSemesterRecord,
 )
-
 User = get_user_model()
 
 class BylawDataTests(TestCase):
@@ -190,3 +190,26 @@ class SeedTests(TestCase):
         print("--- END HU323 FULL CHECK ---\n")
 
         print("--- END CANDIDATES ---\n")
+
+    def test_saved_graduation_plan_defaults(self):
+        student = self.student("20230006")
+        plan = SavedGraduationPlan.objects.create(student=student)
+
+        self.assertEqual(plan.plan_data, {})
+        self.assertEqual(plan.projected_graduation_term, "")
+        self.assertTrue(plan.is_stale)
+        self.assertIsNotNone(plan.updated_at)
+
+    def test_mark_plan_stale(self):
+        student = self.student("20230006")
+        plan = SavedGraduationPlan.objects.create(
+            student=student,
+            plan_data={"courses": ["CS111"]},
+            is_stale=False,
+        )
+
+        services.mark_plan_stale(student)
+
+        plan.refresh_from_db()
+        self.assertTrue(plan.is_stale)
+        self.assertIsNotNone(plan.updated_at)

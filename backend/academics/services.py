@@ -11,10 +11,26 @@ from django.db import transaction
 from django.utils import timezone
 
 from .models import (
-    Course, CourseOffering, CreditLimitRule, DecisionStatus, DegreeRequirement, Department,
-    DepartmentCourse, Enrollment, GradeScale, LevelThreshold, Notification, Semester,
-    SeventhCourseRequest, Student, StudentDepartmentChange, StudentSemesterRecord,
-    SummerRequest, SystemSetting, OfferingTimeSlot,
+    Course,
+    CourseOffering,
+    CreditLimitRule,
+    DecisionStatus,
+    DegreeRequirement,
+    Department,
+    DepartmentCourse,
+    Enrollment,
+    GradeScale,
+    LevelThreshold,
+    Notification,
+    Semester,
+    SeventhCourseRequest,
+    Student,
+    StudentDepartmentChange,
+    StudentSemesterRecord,
+    SummerRequest,
+    SystemSetting,
+    OfferingTimeSlot,
+    SavedGraduationPlan,
 )
 
 E = Enrollment.Status
@@ -41,7 +57,10 @@ def get_setting(key):
     row = SystemSetting.objects.filter(key=key).first()
     return type(default)(row.value) if row else default
 
-
+def mark_plan_stale(student):
+    SavedGraduationPlan.objects.filter(
+        student=student
+    ).update(is_stale=True)
 # ------------------------------------------------------------------ engine ------------
 def counted_attempts(student, up_to=None):
     """{course_id: Enrollment} - the latest graded (completed/failed) attempt per course.
@@ -113,12 +132,45 @@ def required_hours(department):
     return DegreeRequirement.objects.filter(q).aggregate(s=Sum("required_hours"))["s"] or 0
 
 
+
 def department_at(student, semester):
-    ch = (StudentDepartmentChange.objects
-          .filter(student=student, semester__start_date__lte=semester.start_date)
-          .select_related("to_department")
-          .order_by("semester__start_date", "changed_at", "id").last())
-    return ch.to_department if ch else None
+    """
+    Return the department the student belonged to at the given semester.
+
+    If there was a department change during or before that semester,
+    use the latest change's destination department.
+
+    Otherwise, use the department before the first recorded change,
+    or the student's current department if no changes exist.
+    """
+    changes = (
+        StudentDepartmentChange.objects
+        .filter(
+            student=student,
+            semester__start_date__lte=semester.start_date
+        )
+        .select_related("to_department")
+        .order_by("semester__start_date", "changed_at", "id")
+    )
+
+    latest_change = changes.last()
+
+    if latest_change:
+        return latest_change.to_department
+
+    first_change = (
+        StudentDepartmentChange.objects
+        .filter(student=student)
+        .select_related("from_department")
+        .order_by("semester__start_date", "changed_at", "id")
+        .first()
+    )
+
+    if first_change:
+        return first_change.from_department
+
+    return student.department
+
 
 
 def max_credits_for(student, semester):
@@ -210,6 +262,7 @@ def register_course(student, offering, *, admin_override=False):
     if not created:
         e.status = E.REGISTERED
         e.save(update_fields=["status", "updated_at"])
+    mark_plan_stale(student)
     return e
 
 
@@ -219,6 +272,7 @@ def withdraw_course(enrollment):
         raise DomainError("Only a registered course can be withdrawn.")
     enrollment.status = E.WITHDRAWN
     enrollment.save(update_fields=["status", "updated_at"])
+    mark_plan_stale(enrollment.student)
     return enrollment
 
 
@@ -238,6 +292,7 @@ def post_grade(enrollment, score, graded_by=None):
     enrollment.status = E.COMPLETED if gs.is_passing else E.FAILED
     enrollment.graded_by, enrollment.graded_at = graded_by, timezone.now()
     enrollment.save()
+    mark_plan_stale(enrollment.student)
     return enrollment
 
 
@@ -255,6 +310,7 @@ def set_department(student, department):
         semester=current_semester())
     student.department = department
     student.save(update_fields=["department", "updated_at"])
+    mark_plan_stale(student)
     notify(student, Notification.Type.DEPARTMENT_CHANGED,
            f"Your department is now {department.code}.", f"تم تغيير قسمك إلى {department.code}.",
            "/graduation-path")
@@ -406,5 +462,6 @@ def close_semester(semester):
             semester_gpa=sem_gpa, cumulative_gpa=cgpa(student, up_to=semester) or Decimal("0.00"))
         student.academic_level = level
         student.save(update_fields=["academic_level", "updated_at"])
+        mark_plan_stale(student)
     semester.is_closed, semester.is_current = True, False
     semester.save(update_fields=["is_closed", "is_current"])

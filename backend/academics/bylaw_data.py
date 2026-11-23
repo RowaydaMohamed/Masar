@@ -93,6 +93,18 @@ DEPT_COURSE_NAMES = {
 }
 PROJECT_CODES = {"CS498", "IT498", "IS498", "AI498"}      # 6 credits each
 
+# ---- Semester mapping (based on 2025/2026 Spring exam schedule) -----------------------
+SPRING_COURSES = {
+    "CS251", "IS422", "IS352", "CS460", "MA112",
+    "IS333", "HU112", "IT111", "AI460", "IT241",
+    "IS448", "IS240", "AI420", "IS345", "IT223",
+    "IT443", "CS419", "IS321", "IT331", "IT444",
+    "CS316", "CS112", "AI430", "CS241", "IS451",
+    "IT312", "CS352", "AI370", "IT222", "HU323",
+    "MA113", "IT415", "IS435", "CS405", "IT342",
+    "ST122", "IT423",
+}
+
 DEPT_COMPULSORY = {
     "CS": "AI330 CS322 IT331 CS352 CS471 AI310 CS419 CS405 CS342 CS460 IT423 CS498".split(),
     "IT": "IT311 IT321 IT322 IT331 IT341 IT342 IT433 IT441 AI310 IT444 IT423 IT498".split(),
@@ -150,22 +162,49 @@ def parse_prereqs(text=PREREQ_TEXT):
 
 
 def all_courses():
-    """-> {code: dict(name, credits, group, type)}; type is None for department courses."""
+    """Return {code: dict(name, credits, group, type)} for all catalog courses."""
+
+    fourth_year_courses = {
+        "CS496",
+        "IT496",
+        "IS496",
+        "AI496",
+    }
+
     c = {}
+
     for code, (n, h) in GENERAL_COMPULSORY.items():
         c[code] = dict(name=n, credits=h, group="general", type="compulsory")
+
     for code, (n, h) in GENERAL_ELECTIVE.items():
         c[code] = dict(name=n, credits=h, group="general", type="elective")
+
     for code, (n, h) in FACULTY_COMPULSORY.items():
         c[code] = dict(name=n, credits=h, group="faculty", type="compulsory")
+
     for code, (n, h) in FACULTY_ELECTIVE.items():
         c[code] = dict(name=n, credits=h, group="faculty", type="elective")
+
     for code, n in DEPT_COURSE_NAMES.items():
-        c[code] = dict(name=(f"{n} ({code[:2]})" if code in PROJECT_CODES else n),
-                       credits=6 if code in PROJECT_CODES else 3, group="department", type=None)
+        c[code] = dict(
+            name=f"{n} ({code[:2]})" if code in PROJECT_CODES else n,
+            credits=6 if code in PROJECT_CODES else 3,
+            group="department",
+            type=None,
+        )
+
     for code, d in c.items():
-        d["min_level"] = int(code[2])          # first digit of the numeric part
+        d["min_level"] = 4 if code in fourth_year_courses else 1
+        d["min_earned_hours"] = 0
+
+        # Inferred from the 2025/2026 Spring exam schedule:
+        # courses listed there are Spring; other courses are assumed Fall.
+        d["typical_term"] = (
+            "spring" if code in SPRING_COURSES else "fall"
+        )
+
     return c
+
 
 
 def validate():
